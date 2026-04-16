@@ -15,6 +15,7 @@ import java.util.*;
  *  - Directiva EQU, ORG, expresiones, tipos A/R
  */
 public class AnalizadorSemantico extends SICXEBaseListener {
+//nomas para que haga push
 
     // ── Resultados ────────────────────────────────────────────────────
     private final Map<String, Integer> tablaSimbolos   = new LinkedHashMap<>();
