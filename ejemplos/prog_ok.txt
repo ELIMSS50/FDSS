@@ -1,0 +1,15 @@
+=== Tabla de Símbolos ===
+Símbolo       Valor     Tipo   Bloque
+----------------------------------------
+FIRST         03E8      R     0
+ENDFIL        03FB      R     0
+EOF           03FE      R     0
+LENGTH        0401      R     0
+BUFFER        0404      R     0
+
+=== Tabla de Bloques ===
+No.     Nombre           Longitud  Dir.Ini
+---------------------------------------------
+0       (por omisión)    003A      0000
+
+Longitud del programa: 003Ah bytes
