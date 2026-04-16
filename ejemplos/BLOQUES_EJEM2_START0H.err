@@ -1,0 +1,3 @@
+=== Errores Semánticos (1) ===
+x Error en línea 25 [EQU]: Error en EQU 'RETADR+BUFFEND-BUFFER': Símbolo 'RETADR' pertenece al bloque 1, se requiere del bloque 4 (EQU exige símbolos del mismo bloque)
+

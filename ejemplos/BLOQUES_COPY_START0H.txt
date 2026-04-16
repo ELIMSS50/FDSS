@@ -1,0 +1,21 @@
+=== Tabla de Símbolos ===
+Símbolo       Valor     Tipo   Bloque
+----------------------------------------
+FIRST         0000      R     0
+CLOOP         0003      R     0
+RETADR        0000      R     1
+LENGTH        0003      R     1
+BUFFER        0000      R     2
+BUFFEND       1000      R     2
+MAXLEN        1000      A     2
+RDREC         000C      R     0
+INPUT         0006      R     1
+
+=== Tabla de Bloques ===
+No.     Nombre           Longitud  Dir.Ini
+---------------------------------------------
+0       (por omisión)    0015      0000
+1       CDATA            0007      0015
+2       CBLKS            1000      001C
+
+Longitud del programa: 101Ch bytes
