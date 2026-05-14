@@ -648,8 +648,8 @@ public class GeneradorCodigo {
             }
             if (tBytes > 0) emitirT(pw, tDir, tBytes, buf.toString());
 
-            // ── Registros M ───────────────────────────────────────────
-            for (String m : regM) pw.println(m);
+            // ── Registros M (después de todos los T) ──────────────────
+            for (String m : regM) { pw.println(m); registros.add(m); }
 
             // ── Registro E ────────────────────────────────────────────
             // Sección principal: dirección del operando de END (o primera instrucción)
@@ -667,7 +667,7 @@ public class GeneradorCodigo {
     }
 
     private void agregarRegM(List<String> dest, String regM) {
-        dest.add(regM); registros.add(regM);
+        dest.add(regM); // solo acumula; se añade a registros después del último T
     }
 
     /** Quita prefijos de modo (#,@) y sufijo ,X del operando. */

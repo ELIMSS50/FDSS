@@ -578,7 +578,19 @@ public class CargadorLigador extends JFrame {
                     char   sign   = linea.charAt(signIdx);
                     String sym    = linea.substring(signIdx + 1).trim();
                     Integer symVal = resolverSimbolo(sym, tabseSim);
-                    if (symVal == null) continue;
+                    if (symVal == null) {
+                        // Símbolo externo no encontrado en TABSE → detener carga (algoritmo paso 2)
+                        actualizarMapaMemoria();
+                        String errMsg = String.format(
+                            "Símbolo '%s' no encontrado en TABSE.\nCarga interrumpida en módulo '%s' (registro M en %06X).",
+                            sym, info.nombre(), info.dirsc() + mAddr - info.dirIniH());
+                        lblInfo.setText(String.format(
+                            "ERROR: símbolo '%s' no encontrado en TABSE — carga interrumpida", sym));
+                        lblInfo.setForeground(FG_ERR);
+                        JOptionPane.showMessageDialog(CargadorLigador.this,
+                            errMsg, "Error de ligado", JOptionPane.ERROR_MESSAGE);
+                        return;
+                    }
 
                     int  absAddr   = info.dirsc() + mAddr - info.dirIniH();
                     int  byteCount = (nibbles + 1) / 2;

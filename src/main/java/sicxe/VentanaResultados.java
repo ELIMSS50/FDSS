@@ -249,7 +249,7 @@ public class VentanaResultados extends JFrame {
             boolean esExp = sec.simbolosExportados.contains(sym);
             String blqStr = esExt ? "—" : (blk >= 0 && blk < sec.nombresBloques.size()
                 ? blk + " (" + sec.nombresBloques.get(blk) + ")" : String.valueOf(blk));
-            String tipoStr = "E".equals(tipo) ? "E (Externo)" : "A".equals(tipo) ? "A (Abs)" : "R (Rel)";
+            String tipoStr = esExt ? "E (Externo)" : "A".equals(tipo) ? "A (Abs)" : "R (Rel)";
             String rol = esExt ? "EXTREF" : esExp ? "EXTDEF" : "";
             filas.add(new Object[]{sym, esExt ? "N/A" : String.format("%04X", val),
                 esExt ? "—" : val, tipoStr, blqStr, rol});
