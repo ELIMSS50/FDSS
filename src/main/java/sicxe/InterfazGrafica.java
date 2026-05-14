@@ -6,6 +6,7 @@ import javax.swing.*;
 import javax.swing.event.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.table.*;
+import javax.swing.text.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
@@ -39,21 +40,23 @@ public class InterfazGrafica extends JFrame {
     private DefaultTableModel  modeloSimbolos;
     private DefaultTableModel  modeloBloques;
     private JTextArea          areaErrores;
-    private JTextArea          areaObjeto;
+    private JTextPane          areaObjeto;
     private JLabel             lblRuta;
     private JLabel             lblEstado;
     private JLabel             lblTamano;
 
     // ── Último ensamblado ─────────────────────────────────────────────
+    private List<SeccionControl> ultimasSecciones    = new ArrayList<>();
+    private List<String>         ultimoRegistros     = new ArrayList<>();
+    private int                  ultimaLongitud      = 0;
+    private List<File>           ultimosObjs         = new ArrayList<>();
+    // Compatibilidad con accionPaso1 (solo Pass 1, sin secciones completas)
     private List<EntradaListado> ultimoListado;
     private Map<String, Integer> ultimoSimbolos;
     private Map<String, String>  ultimoTipoSim;
     private Map<String, Integer> ultimoBloquesSim;
-    private Set<String>          ultimoRelocSim;
-    private List<String>         ultimoRegistros;
     private List<int[]>          ultimoTablaBloques;
     private List<String>         ultimoNombresBloques;
-    private int                  ultimaLongitud;
 
     // ─────────────────────────────────────────────────────────────────
     public InterfazGrafica() {
@@ -127,8 +130,13 @@ public class InterfazGrafica extends JFrame {
         mEnsamblar.addSeparator();
         mEnsamblar.add(miEnsamblar);
 
-        // ── CARGAR / SIMULAR (deshabilitados) ─────────────────────────
-        JMenu mCargar  = menu("CARGAR");  mCargar .setEnabled(false);
+        // ── CARGAR ────────────────────────────────────────────────────
+        JMenu mCargar = menu("CARGAR");
+        JMenuItem miCargador = menuItem("Cargador-Ligador...", null, 0, 0);
+        miCargador.addActionListener(e -> new CargadorLigador(ultimosObjs));
+        mCargar.add(miCargador);
+
+        // ── SIMULAR (deshabilitado) ────────────────────────────────────
         JMenu mSimular = menu("SIMULAR"); mSimular.setEnabled(false);
 
         // ── Ventanas ──────────────────────────────────────────────────
@@ -178,6 +186,8 @@ public class InterfazGrafica extends JFrame {
         tb.add(btnTB("Ensamblar",e -> accionEnsamblar()));
         tb.addSeparator();
         tb.add(btnTBColor("Limpiar", new Color(180, 70, 50), e -> accionLimpiar()));
+        tb.addSeparator();
+        tb.add(btnTBColor("Cargador", new Color(60, 90, 140), e -> new CargadorLigador(ultimosObjs)));
         return tb;
     }
 
@@ -242,11 +252,11 @@ public class InterfazGrafica extends JFrame {
     // ═══════════════════════════════════════════════════════════════════
     private JPanel construirPanelIntermedio() {
         JPanel panel = panelTitulado("ARCHIVO INTERMEDIO", new Color(255, 200, 80));
-        String[] cols = {"LN","BLQ","CP","ETIQUETA","INSTRUCCIÓN","OPERANDO","COD.OBJ","ERROR"};
+        String[] cols = {"LN","BLQ","CP","ETIQUETA","INSTRUCCIÓN","OPERANDO","COD.OBJ","ERROR","SEC"};
         modeloIntermedio = modeloNoEditable(cols);
         JTable t = tabla(modeloIntermedio);
         t.setDefaultRenderer(Object.class, new RendererIntermedio());
-        int[] w = {35, 60, 60, 80, 100, 110, 120, 200};
+        int[] w = {35, 60, 60, 80, 100, 110, 120, 200, 80};
         for (int i = 0; i < w.length; i++) t.getColumnModel().getColumn(i).setPreferredWidth(w[i]);
         panel.add(scroll(t), BorderLayout.CENTER);
         return panel;
@@ -257,11 +267,11 @@ public class InterfazGrafica extends JFrame {
     // ═══════════════════════════════════════════════════════════════════
     private JPanel construirPanelSimbolos() {
         JPanel panel = panelTitulado("TABLA DE SÍMBOLOS", new Color(100, 220, 160));
-        String[] cols = {"Símbolo","Dirección/Valor","Tipo","No. Bloque"};
+        String[] cols = {"Símbolo","Dirección/Valor","Tipo","No. Bloque","Ext.","Sección"};
         modeloSimbolos = modeloNoEditable(cols);
         JTable t = tabla(modeloSimbolos);
         t.setDefaultRenderer(Object.class, new RendererSimbolos());
-        int[] w = {90, 100, 75, 85};
+        int[] w = {90, 100, 75, 85, 45, 80};
         for (int i = 0; i < w.length; i++) t.getColumnModel().getColumn(i).setPreferredWidth(w[i]);
         panel.add(scroll(t), BorderLayout.CENTER);
         return panel;
@@ -282,9 +292,37 @@ public class InterfazGrafica extends JFrame {
     // ═══════════════════════════════════════════════════════════════════
     private JPanel construirPanelObjeto() {
         JPanel panel = panelTitulado("CÓDIGO OBJETO (REGISTROS)", new Color(255, 215, 100));
-        areaObjeto = areaTexto(new Color(255, 215, 100), false);
+        areaObjeto = new JTextPane();
+        areaObjeto.setFont(new Font("Monospaced", Font.PLAIN, 12));
+        areaObjeto.setBackground(BG_TABLE);
+        areaObjeto.setEditable(false);
+        areaObjeto.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
         panel.add(scroll(areaObjeto), BorderLayout.CENTER);
         return panel;
+    }
+
+    private void mostrarRegistrosColoreados(List<String> registros) {
+        StyledDocument doc = areaObjeto.getStyledDocument();
+        try { doc.remove(0, doc.getLength()); } catch (Exception ex) {}
+        for (String r : registros) {
+            char tipo = r.isEmpty() ? 0 : r.charAt(0);
+            Color c = switch (tipo) {
+                case 'H' -> new Color(100, 200, 255);
+                case 'D' -> new Color(255, 200,  80);
+                case 'R' -> new Color(180, 130, 255);
+                case 'T' -> new Color(255, 215, 100);
+                case 'M' -> new Color(200, 100, 255);
+                case 'E' -> new Color( 60, 200, 100);
+                default  -> FG_TEXT;
+            };
+            SimpleAttributeSet attrs = new SimpleAttributeSet();
+            StyleConstants.setForeground(attrs, c);
+            StyleConstants.setFontFamily(attrs, "Monospaced");
+            StyleConstants.setFontSize(attrs, 12);
+            try { doc.insertString(doc.getLength(), r + "\n", attrs); }
+            catch (Exception ex) {}
+        }
+        areaObjeto.setCaretPosition(0);
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -292,11 +330,11 @@ public class InterfazGrafica extends JFrame {
     // ═══════════════════════════════════════════════════════════════════
     private JPanel construirPanelBloques() {
         JPanel panel = panelTitulado("TABLA DE BLOQUES", new Color(180, 200, 255));
-        String[] cols = {"No. Bloque","Nombre","Longitud","Dir. Inicio"};
+        String[] cols = {"No. Bloque","Nombre","Longitud","Dir. Inicio","Sección"};
         modeloBloques = modeloNoEditable(cols);
         JTable t = tabla(modeloBloques);
         t.setDefaultRenderer(Object.class, new RendererBloques());
-        int[] w = {80, 130, 90, 90};
+        int[] w = {80, 130, 90, 90, 80};
         for (int i = 0; i < w.length; i++) t.getColumnModel().getColumn(i).setPreferredWidth(w[i]);
         panel.add(scroll(t), BorderLayout.CENTER);
         return panel;
@@ -317,9 +355,9 @@ public class InterfazGrafica extends JFrame {
         panelBotones.add(btnAccion("Paso 1: Archivo intermedio", e -> accionPaso1()));
         panelBotones.add(btnAccion("Paso 2: Código objeto",      e -> accionPaso2()));
         panelBotones.add(btnAccion("Ensamblar",                  e -> accionEnsamblar()));
-        JButton bCargar = btnAccion("Cargar en memoria", null); bCargar.setEnabled(false);
+        //JButton bCargar = btnAccion("Cargar en memoria", null); bCargar.setEnabled(false);
         JButton bAbrir  = btnAccion("Abrir prog. objeto", null); bAbrir .setEnabled(false);
-        panelBotones.add(bCargar);
+        //panelBotones.add(bCargar);
         panelBotones.add(bAbrir);
         panelBotones.add(Box.createHorizontalStrut(12));
         JButton bLimpiar = btnAccionColor("Limpiar todo", new Color(160, 55, 40), e -> accionLimpiar());
@@ -476,8 +514,9 @@ public class InterfazGrafica extends JFrame {
             List<String> errSem = new ArrayList<>(sem.getErrores());
 
             limpiarResultados();
-            poblarIntermedio(ultimoListado, ultimoNombresBloques, null);
-            poblarSimbolos(ultimoSimbolos, ultimoTipoSim, ultimoBloquesSim, ultimoNombresBloques);
+            poblarIntermedio(ultimasSecciones, null);
+            poblarSimbolos(ultimasSecciones);
+            poblarBloques(ultimasSecciones);
             mostrarErrores(Collections.emptyList(), errSem, Collections.emptyList());
 
             lblTamano.setText(String.format("Tamaño: %04Xh", ultimaLongitud));
@@ -493,14 +532,15 @@ public class InterfazGrafica extends JFrame {
             AnalizadorSemantico sem = ejecutarPaso1();
             List<String> errSem = new ArrayList<>(sem.getErrores());
 
-            GeneradorCodigo gen = ejecutarPaso2(sem);
-            List<String> errP2 = new ArrayList<>(gen.getErrores());
+            List<GeneradorCodigo> gens = ejecutarPaso2(sem);
+            List<String> errP2 = new ArrayList<>();
+            for (GeneradorCodigo g : gens) errP2.addAll(g.getErrores());
 
             limpiarResultados();
-            poblarIntermedio(ultimoListado, ultimoNombresBloques, ultimoRelocSim);
-            poblarSimbolos(ultimoSimbolos, ultimoTipoSim, ultimoBloquesSim, ultimoNombresBloques);
-            poblarBloques(ultimoTablaBloques, ultimoNombresBloques);
-            areaObjeto.setText(String.join("\n", ultimoRegistros));
+            poblarIntermedio(ultimasSecciones, null);
+            poblarSimbolos(ultimasSecciones);
+            poblarBloques(ultimasSecciones);
+            mostrarRegistrosColoreados(ultimoRegistros);
             mostrarErrores(Collections.emptyList(), errSem, errP2);
 
             int total = errSem.size() + errP2.size();
@@ -532,15 +572,16 @@ public class InterfazGrafica extends JFrame {
             capturarPaso1(sem);
 
             // ── Paso 2 ────────────────────────────────────────────────
-            GeneradorCodigo gen = ejecutarPaso2(sem);
-            List<String> errP2  = new ArrayList<>(gen.getErrores());
+            List<GeneradorCodigo> gens = ejecutarPaso2(sem);
+            List<String> errP2 = new ArrayList<>();
+            for (GeneradorCodigo g : gens) errP2.addAll(g.getErrores());
 
             // ── Mostrar resultados ────────────────────────────────────
             limpiarResultados();
-            poblarIntermedio(ultimoListado, ultimoNombresBloques, ultimoRelocSim);
-            poblarSimbolos(ultimoSimbolos, ultimoTipoSim, ultimoBloquesSim, ultimoNombresBloques);
-            poblarBloques(ultimoTablaBloques, ultimoNombresBloques);
-            areaObjeto.setText(String.join("\n", ultimoRegistros));
+            poblarIntermedio(ultimasSecciones, null);
+            poblarSimbolos(ultimasSecciones);
+            poblarBloques(ultimasSecciones);
+            mostrarRegistrosColoreados(ultimoRegistros);
             mostrarErrores(errSint, errSem, errP2);
 
             // ── Escribir archivos de salida ───────────────────────────
@@ -551,6 +592,10 @@ public class InterfazGrafica extends JFrame {
             lblTamano.setText(String.format("Tamaño: %04Xh bytes", ultimaLongitud));
             setStatus(total == 0 ? "●  Ensamblado correctamente" : "✘  " + total + " error(es)",
                       total == 0 ? FG_OK : FG_ERR);
+
+            new VentanaResultados(
+                archivoActual != null ? archivoActual.getName() : "Sin título",
+                ultimasSecciones, errSint, errSem, errP2);
 
         } catch (Exception ex) { error("Error al ensamblar:\n" + ex.getMessage()); }
     }
@@ -575,54 +620,68 @@ public class InterfazGrafica extends JFrame {
     }
 
     private void capturarPaso1(AnalizadorSemantico sem) {
+        ultimasSecciones     = sem.getSecciones();
+        ultimaLongitud       = sem.getLongitudPrograma();
+        ultimoRegistros      = new ArrayList<>();
+        // Compatibilidad legacy
         ultimoListado        = sem.getListado();
         ultimoSimbolos       = sem.getTablaSimbolos();
         ultimoTipoSim        = sem.getTipoSimbolos();
         ultimoBloquesSim     = sem.getBloqueSimbolos();
         ultimoNombresBloques = sem.getNombresBloques();
         ultimoTablaBloques   = sem.getTablaBloques();
-        ultimaLongitud       = sem.getLongitudPrograma();
-        ultimoRelocSim       = new HashSet<>();
-        ultimoRegistros      = new ArrayList<>();
     }
 
-    private GeneradorCodigo ejecutarPaso2(AnalizadorSemantico sem) throws Exception {
-        GeneradorCodigo gen = new GeneradorCodigo(
-            sem.getListado(), sem.getTablaSimbolos(), sem.getTipoSimbolos(),
-            sem.getBloqueSimbolos(), sem.getValorBase(), sem.getSimboloBase(),
-            sem.getTablaBloques(), sem.getDireccionInicio());
-        gen.generar();
+    private List<GeneradorCodigo> ejecutarPaso2(AnalizadorSemantico sem) throws Exception {
+        List<GeneradorCodigo> generadores = new ArrayList<>();
+        List<String>          todosRegs   = new ArrayList<>();
+        ultimosObjs.clear();
 
-        // escribirObj es lo que construye los registros H/T/M/E internamente
-        String rutaObj;
-        if (archivoActual != null) {
-            rutaObj = Main.cambiarExtension(archivoActual.getAbsolutePath(), ".obj");
-        } else {
-            File tmp = File.createTempFile("sicxe_", ".obj");
-            tmp.deleteOnExit();
-            rutaObj = tmp.getAbsolutePath();
+        List<SeccionControl> todas = sem.getSecciones();
+        for (SeccionControl sec : todas) {
+            GeneradorCodigo gen = new GeneradorCodigo(sec);
+            if (sec.esPrincipal) gen.setTodasSecciones(todas);
+            gen.generar();
+
+            String rutaObj;
+            if (archivoActual != null) {
+                String base = Main.cambiarExtension(archivoActual.getAbsolutePath(), "");
+                rutaObj = base + (sem.getSecciones().size() > 1 ? "_" + sec.nombre : "") + ".obj";
+            } else {
+                File tmp = File.createTempFile("sicxe_" + sec.nombre + "_", ".obj");
+                tmp.deleteOnExit();
+                rutaObj = tmp.getAbsolutePath();
+            }
+            gen.escribirObj(rutaObj);
+            ultimosObjs.add(new File(rutaObj));
+
+            generadores.add(gen);
+
+            if (!todosRegs.isEmpty()) todosRegs.add("");
+            todosRegs.add("─── SECCIÓN: " + sec.nombre + " ───────────────────");
+            todosRegs.addAll(gen.getRegistrosObjeto());
+            sec.registrosObjeto.clear();
+            sec.registrosObjeto.addAll(gen.getRegistrosObjeto());
         }
-        gen.escribirObj(rutaObj, extraerNombrePrograma(sem),
-            sem.getDireccionInicio(), sem.getLongitudPrograma());
 
-        ultimoRelocSim  = gen.getSimbolosRelocalizables();
-        ultimoRegistros = gen.getRegistrosObjeto();
-        return gen;
-    }
-
-    private String extraerNombrePrograma(AnalizadorSemantico sem) {
-        for (var e : sem.getListado())
-            if ("START".equals(e.instruccion) && !e.etiqueta.isBlank()) return e.etiqueta;
-        return archivoActual != null
-            ? archivoActual.getName().replaceFirst("\\.[^.]+$", "") : "PROG";
+        ultimoRegistros = todosRegs;
+        return generadores;
     }
 
     private void escribirArchivos(AnalizadorSemantico sem,
                                    List<String> eS, List<String> eSem, List<String> eP2) {
         try {
             String ruta = archivoActual.getAbsolutePath();
-            // .obj ya fue escrito por ejecutarPaso2 — solo generamos .csv y .err
+            String base = Main.cambiarExtension(ruta, "");
+            boolean multi = sem.getSecciones().size() > 1;
+
             sem.generarCSV(Main.cambiarExtension(ruta, ".csv"));
+
+            for (SeccionControl sec : sem.getSecciones()) {
+                String sufijo = multi ? "_" + sec.nombre : "";
+                escribirTablaSim(sec, base + sufijo + ".sim");
+                escribirTablaBlk(sec, base + sufijo + ".blk");
+            }
 
             List<String> todos = new ArrayList<>();
             todos.addAll(eS); todos.addAll(eSem); todos.addAll(eP2);
@@ -638,61 +697,109 @@ public class InterfazGrafica extends JFrame {
         }
     }
 
+    private void escribirTablaSim(SeccionControl sec, String ruta) throws IOException {
+        List<String> lineas = new ArrayList<>();
+        lineas.add("=== TABLA DE SÍMBOLOS: " + sec.nombre + " ===");
+        lineas.add(String.format("%-12s %-10s %-6s %-20s %-8s", "SÍMBOLO", "VALOR(HEX)", "TIPO", "BLOQUE", "ROL"));
+        lineas.add("-".repeat(60));
+        for (Map.Entry<String, Integer> en : sec.tablaSimbolos.entrySet()) {
+            String sym  = en.getKey();
+            int    val  = en.getValue();
+            String tipo = sec.tipoSimbolos.getOrDefault(sym, "R");
+            int    blk  = sec.bloqueSimbolos.getOrDefault(sym, 0);
+            boolean esExt = sec.simbolosExternos.contains(sym);
+            boolean esExp = sec.simbolosExportados.contains(sym);
+            String blqStr = esExt ? "—"
+                : (blk >= 0 && blk < sec.nombresBloques.size()
+                    ? blk + " (" + sec.nombresBloques.get(blk) + ")" : String.valueOf(blk));
+            String rol = esExt ? "EXTREF" : esExp ? "EXTDEF" : "";
+            lineas.add(String.format("%-12s %-10s %-6s %-20s %-8s",
+                sym, esExt ? "N/A" : String.format("%04X", val), tipo, blqStr, rol));
+        }
+        Files.write(Paths.get(ruta), lineas);
+    }
+
+    private void escribirTablaBlk(SeccionControl sec, String ruta) throws IOException {
+        List<String> lineas = new ArrayList<>();
+        lineas.add("=== TABLA DE BLOQUES: " + sec.nombre + " ===");
+        lineas.add(String.format("%-10s %-14s %-12s %-12s", "NO.BLOQUE", "NOMBRE", "LONGITUD", "DIR.INICIO"));
+        lineas.add("-".repeat(50));
+        for (int[] b : sec.tablaBloques) {
+            String nom = (b[0] >= 0 && b[0] < sec.nombresBloques.size())
+                ? sec.nombresBloques.get(b[0]) : "?";
+            lineas.add(String.format("%-10d %-14s %-12s %-12s",
+                b[0], nom, String.format("%04X", b[2]), String.format("%04X", b[3])));
+        }
+        Files.write(Paths.get(ruta), lineas);
+    }
+
     // ═══════════════════════════════════════════════════════════════════
     // POBLAR PANELES
     // ═══════════════════════════════════════════════════════════════════
-    private void poblarIntermedio(List<EntradaListado> listado, List<String> nombresBlq,
-                                   Set<String> reloc) {
+    private void poblarIntermedio(List<SeccionControl> secciones, Set<String> reloc) {
         modeloIntermedio.setRowCount(0);
-        for (EntradaListado e : listado) {
-            String blqStr = numBloque(e.noBloque, nombresBlq);
-            String cod = nvl(e.codigoObjeto);
-            if (reloc != null && !cod.isBlank() && e.formato == 4) {
-                String opr = nvl(e.operando).trim();
-                if (opr.toUpperCase().endsWith(",X")) opr = opr.substring(0, opr.length()-2).trim();
-                if (opr.startsWith("#") || opr.startsWith("@")) opr = opr.substring(1).trim();
-                if (reloc.contains(opr)) cod += "*";
-            } else if (reloc != null && !cod.isBlank() && "WORD".equals(e.instruccion)
-                       && "R".equals(e.tipoExpresion)) {
-                cod += "*";
+        if (secciones == null) return;
+        for (SeccionControl sec : secciones) {
+            for (EntradaListado e : sec.listado) {
+                String blqStr = numBloque(e.noBloque, sec.nombresBloques);
+                String cod    = nvl(e.codigoObjeto);
+                // Marcar con * si tiene registro M
+                if (!cod.isBlank() && ("EX".equals(e.tipoExpresion) || "R".equals(e.tipoExpresion)))
+                    cod += "*";
+                String err = nvl(e.error);
+                if (!nvl(e.errorP2).isBlank())
+                    err = err.isBlank() ? "[P2] " + e.errorP2 : err + " | [P2] " + e.errorP2;
+
+                modeloIntermedio.addRow(new Object[]{
+                    e.numeroLinea, blqStr,
+                    String.format("%04X", e.contloc),
+                    nvl(e.etiqueta), nvl(e.instruccion), nvl(e.operando),
+                    cod, err, sec.nombre
+                });
             }
-            String err = nvl(e.error);
-            if (!nvl(e.errorP2).isBlank())
-                err = err.isBlank() ? "[P2] " + e.errorP2 : err + " | [P2] " + e.errorP2;
-
-            modeloIntermedio.addRow(new Object[]{
-                e.numeroLinea, blqStr,
-                String.format("%04X", e.contloc),
-                nvl(e.etiqueta), nvl(e.instruccion), nvl(e.operando),
-                cod, err
-            });
         }
     }
 
-    private void poblarSimbolos(Map<String, Integer> sim, Map<String, String> tipos,
-                                 Map<String, Integer> bloques, List<String> nombresBlq) {
+    private void poblarSimbolos(List<SeccionControl> secciones) {
         modeloSimbolos.setRowCount(0);
-        for (Map.Entry<String, Integer> en : sim.entrySet()) {
-            String sym  = en.getKey();
-            int    val  = en.getValue();
-            String tipo = tipos.getOrDefault(sym, "R");
-            int    blk  = bloques.getOrDefault(sym, 0);
-            modeloSimbolos.addRow(new Object[]{
-                sym,
-                String.format("%04X", val),
-                tipo.equals("A") ? "A (Abs)" : "R (Rel)",
-                numBloque(blk, nombresBlq)
-            });
+        if (secciones == null) return;
+        for (SeccionControl sec : secciones) {
+            for (Map.Entry<String, Integer> en : sec.tablaSimbolos.entrySet()) {
+                String sym  = en.getKey();
+                int    val  = en.getValue();
+                String tipo = sec.tipoSimbolos.getOrDefault(sym, "R");
+                int    blk  = sec.bloqueSimbolos.getOrDefault(sym, -1);
+                boolean esExt = sec.simbolosExternos.contains(sym);
+                String blqStr = esExt ? "—" : numBloque(blk, sec.nombresBloques);
+                String tipoStr;
+                if (esExt)           tipoStr = "E (Ext)";
+                else if ("A".equals(tipo)) tipoStr = "A (Abs)";
+                else                       tipoStr = "R (Rel)";
+                modeloSimbolos.addRow(new Object[]{
+                    sym,
+                    esExt ? "N/A" : String.format("%04X", val),
+                    tipoStr, blqStr,
+                    esExt ? "EXTREF" : (sec.simbolosExportados.contains(sym) ? "EXTDEF" : ""),
+                    sec.nombre
+                });
+            }
         }
     }
 
-    private void poblarBloques(List<int[]> tabla, List<String> nombresBlq) {
+    private void poblarBloques(List<SeccionControl> secciones) {
         modeloBloques.setRowCount(0);
-        for (int[] b : tabla) {
-            String nom = (b[0] >= 0 && b[0] < nombresBlq.size()) ? nombresBlq.get(b[0]) : "?";
-            modeloBloques.addRow(new Object[]{
-                b[0], nom, String.format("%04X", b[2]), String.format("%04X", b[3])
-            });
+        if (secciones == null) return;
+        for (SeccionControl sec : secciones) {
+            for (int[] b : sec.tablaBloques) {
+                String nom = (b[0] >= 0 && b[0] < sec.nombresBloques.size())
+                    ? sec.nombresBloques.get(b[0]) : "?";
+                modeloBloques.addRow(new Object[]{
+                    b[0], nom,
+                    String.format("%04X", b[2]),
+                    String.format("%04X", b[3]),
+                    sec.nombre
+                });
+            }
         }
     }
 
@@ -725,7 +832,10 @@ public class InterfazGrafica extends JFrame {
     }
 
     private void resetUltimoEnsamblado() {
-        ultimoListado = null;
+        ultimasSecciones = new ArrayList<>();
+        ultimoRegistros  = new ArrayList<>();
+        ultimaLongitud   = 0;
+        ultimoListado    = null;
     }
 
     // ═══════════════════════════════════════════════════════════════════

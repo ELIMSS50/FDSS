@@ -1,13 +1,16 @@
 /home/luis/Descargas/p03-bloques/p03-work/src/main/java/sicxe/Main.java
 /home/luis/Descargas/p03-bloques/p03-work/target/generated-sources/antlr4/sicxe/SICXEBaseVisitor.java
+/home/luis/Descargas/p03-bloques/p03-work/src/main/java/sicxe/VentanaTabse.java
 /home/luis/Descargas/p03-bloques/p03-work/target/generated-sources/antlr4/sicxe/SICXEParser.java
 /home/luis/Descargas/p03-bloques/p03-work/src/main/java/sicxe/RecolectorErrores.java
 /home/luis/Descargas/p03-bloques/p03-work/target/generated-sources/antlr4/sicxe/SICXELexer.java
 /home/luis/Descargas/p03-bloques/p03-work/src/main/java/sicxe/InterfazGrafica.java
+/home/luis/Descargas/p03-bloques/p03-work/src/main/java/sicxe/SeccionControl.java
 /home/luis/Descargas/p03-bloques/p03-work/src/main/java/sicxe/VentanaResultados.java
 /home/luis/Descargas/p03-bloques/p03-work/src/main/java/sicxe/EntradaListado.java
 /home/luis/Descargas/p03-bloques/p03-work/src/main/java/sicxe/AnalizadorSemantico.java
 /home/luis/Descargas/p03-bloques/p03-work/target/generated-sources/antlr4/sicxe/SICXEVisitor.java
+/home/luis/Descargas/p03-bloques/p03-work/src/main/java/sicxe/CargadorLigador.java
 /home/luis/Descargas/p03-bloques/p03-work/target/generated-sources/antlr4/sicxe/SICXEBaseListener.java
 /home/luis/Descargas/p03-bloques/p03-work/src/main/java/sicxe/GeneradorCodigo.java
 /home/luis/Descargas/p03-bloques/p03-work/target/generated-sources/antlr4/sicxe/SICXEListener.java

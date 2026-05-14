@@ -34,6 +34,7 @@ tokensError
     | MAS | MENOS | MUL | DIV | HASH | ARROBA | COMA | PAREN_IZQ | PAREN_DER
     | OPCODE | OPCODE_F1 | OPCODE_F2_RR | OPCODE_F2_RN | OPCODE_F2_R
     | KRSUB | KBYTE | KWORD | KRESB | KRESW | KBASE | KEQU | KORG | KUSE
+    | KCSECT | KEXTDEF | KEXTREF
     | REG | XREG
     ;
 
@@ -107,7 +108,14 @@ directiva
     | KEQU MUL                  // EQU *  → valor del CP (relativo)
     | KEQU expresion            // EQU expresión o constante
     | KORG expresion            // ORG valor  → modifica CP
-    | KUSE ID?                   // USE [nombre] → cambio de bloque
+    | KUSE ID?                  // USE [nombre] → cambio de bloque
+    | KCSECT                    // etiqueta obligatoria (validada semánticamente)
+    | KEXTDEF listaIds          // EXTDEF sym1, sym2, ... — definiciones exportadas
+    | KEXTREF listaIds          // EXTREF sym1, sym2, ... — referencias externas
+    ;
+
+listaIds
+    : ID (COMA ID)*
     ;
 
 contenidoByte
@@ -145,17 +153,20 @@ numeral
 // ║                    REGLAS DEL LÉXICO                        ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-KSTART : 'START' ;
-KEND   : 'END'   ;
-KBYTE  : 'BYTE'  ;
-KWORD  : 'WORD'  ;
-KRESW  : 'RESW'  ;
-KRESB  : 'RESB'  ;
-KBASE  : 'BASE'  ;
-KEQU   : 'EQU'   ;
-KORG   : 'ORG'   ;
-KUSE   : 'USE'   ;
-KRSUB  : 'RSUB'  ;
+KSTART  : 'START'  ;
+KEND    : 'END'    ;
+KBYTE   : 'BYTE'   ;
+KWORD   : 'WORD'   ;
+KRESW   : 'RESW'   ;
+KRESB   : 'RESB'   ;
+KBASE   : 'BASE'   ;
+KEQU    : 'EQU'    ;
+KORG    : 'ORG'    ;
+KUSE    : 'USE'    ;
+KRSUB   : 'RSUB'   ;
+KCSECT  : 'CSECT'  ;
+KEXTDEF : 'EXTDEF' ;
+KEXTREF : 'EXTREF' ;
 
 OPCODE_F1
     : 'FIX'

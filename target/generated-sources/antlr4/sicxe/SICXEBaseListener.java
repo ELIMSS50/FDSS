@@ -209,6 +209,18 @@ public class SICXEBaseListener implements SICXEListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterListaIds(SICXEParser.ListaIdsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitListaIds(SICXEParser.ListaIdsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterContenidoByte(SICXEParser.ContenidoByteContext ctx) { }
 	/**
 	 * {@inheritDoc}

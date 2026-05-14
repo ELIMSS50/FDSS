@@ -22,8 +22,11 @@ public class EntradaListado {
     public String errorP2;      // error detectado en el paso 2
 
     // ── Tipo de expresión del operando (para WORD/F3/F4) ─────────────
-    // "A" = Absoluto, "R" = Relativo, "" = no aplica / no evaluado
+    // "A" = Absoluto, "R" = Relativo, "EX" = tiene símbolo externo, "" = no aplica
     public String tipoExpresion;
+
+    // ── Sección de control a la que pertenece esta línea ─────────────
+    public String nombreSeccion;
 
     public EntradaListado() {
         etiqueta       = "";
@@ -34,5 +37,6 @@ public class EntradaListado {
         codigoObjeto   = "";
         errorP2        = "";
         tipoExpresion  = "";
+        nombreSeccion  = "";
     }
 }

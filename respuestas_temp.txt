@@ -1,0 +1,679 @@
+================================================================
+PRÁCTICA 3 — ENSAMBLADOR SIC/XE CON BLOQUES
+RESPUESTAS DE REPORTE
+================================================================
+
+----------------------------------------------------------------
+EVIDENCIA DE COMPONENTES DE LA INTERFAZ GRÁFICA
+----------------------------------------------------------------
+
+Archivo: src/main/java/sicxe/InterfazGrafica.java
+
+--- Componentes principales declarados (líneas 38–46) ---
+
+    private JTextArea          editorFuente;       // editor de código fuente
+    private DefaultTableModel  modeloIntermedio;   // modelo para tabla intermedia
+    private DefaultTableModel  modeloSimbolos;     // modelo para tabla de símbolos
+    private DefaultTableModel  modeloBloques;      // modelo para tabla de bloques
+    private JTextArea          areaErrores;        // área de texto de errores
+    private JTextPane          areaObjeto;         // área de código objeto (con color)
+    private JLabel             lblRuta;            // etiqueta de ruta del archivo
+    private JLabel             lblEstado;          // etiqueta de estado
+    private JLabel             lblTamano;          // etiqueta de tamaño del programa
+
+--- Componentes de layout y contenedores ---
+
+    JFrame          → Ventana principal (extends JFrame) — línea 17
+    JMenuBar        → Barra de menú superior — línea 90
+    JMenu           → Menús: ARCHIVO, ENSAMBLAR, CARGAR, SIMULAR, Ventanas, Ayuda
+    JMenuItem       → Ítems de menú con atajos de teclado (Ctrl+N, Ctrl+O, etc.)
+    JToolBar        → Barra de herramientas con botones — línea 169
+    JButton         → Botones en toolbar y barra inferior
+    JSplitPane      → Paneles divididos (horizontal y vertical anidados) — líneas 192–200
+    JScrollPane     → Scroll para editor, tablas y áreas de texto
+    JPanel          → Contenedores de cada sección (editor, tablas, errores, etc.)
+    JTable          → Tablas de archivo intermedio, símbolos y bloques
+    FlowLayout      → Layout de la barra de botones inferior
+    BorderLayout    → Layout principal de ventana y paneles titulados
+    JFileChooser    → Diálogo para abrir/guardar archivos — línea 963
+    JOptionPane     → Diálogos de confirmación y error
+    JLabel          → Etiquetas de título de panel, ruta, estado
+    StyledDocument  → Texto coloreado en área de registros objeto — línea 297
+
+--- Clases internas de UI ---
+
+    RendererIntermedio (línea 1025) — extiende DefaultTableCellRenderer
+        Colorea filas con error en rojo, columnas CP/instrucción/código objeto
+        con colores distintos.
+
+    RendererSimbolos (línea 1051) — extiende DefaultTableCellRenderer
+        Colorea símbolos en verde, direcciones en azul, tipo A/R con color
+        diferenciado.
+
+    RendererBloques (línea 1072) — extiende DefaultTableCellRenderer
+        Colorea número de bloque, nombre, longitud y dirección de inicio.
+
+    NumeroLineas (línea 1095) — extiende JPanel, implementa DocumentListener
+        Componente personalizado que dibuja los números de línea en el margen
+        izquierdo del editor fuente. Se actualiza automáticamente al escribir.
+
+----------------------------------------------------------------
+FUNCIONES/MÉTODOS/CLASES PARA CREAR, ABRIR Y GUARDAR ARCHIVOS
+----------------------------------------------------------------
+
+Archivo: src/main/java/sicxe/InterfazGrafica.java
+
+--- accionNuevo() — línea 387 ---
+
+    private void accionNuevo() {
+        if (!confirmarCambios()) return;
+        editorFuente.setText("");
+        archivoActual = null;
+        modificado    = false;
+        resetUltimoEnsamblado();
+        limpiarResultados();
+        actualizarTitulo();
+        lblRuta.setText("  Sin archivo");
+        setStatus("●  Listo", new Color(130, 145, 160));
+        lblTamano.setText("Tamaño: ---");
+    }
+
+--- accionAbrir() — línea 400 ---
+
+    private void accionAbrir() {
+        if (!confirmarCambios()) return;
+        JFileChooser fc = fileChooser();
+        if (fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION)
+            abrirArchivo(fc.getSelectedFile());
+    }
+
+--- abrirArchivo(File f) — línea 407 ---
+
+    public void abrirArchivo(File f) {
+        try {
+            editorFuente.setText(new String(Files.readAllBytes(f.toPath())));
+            editorFuente.setCaretPosition(0);
+            archivoActual = f;
+            modificado    = false;
+            resetUltimoEnsamblado();
+            limpiarResultados();
+            actualizarTitulo();
+            lblRuta.setText("  " + f.getAbsolutePath());
+            setStatus("●  Archivo cargado", FG_OK);
+        } catch (IOException ex) {
+            error("Error al abrir:\n" + ex.getMessage());
+        }
+    }
+
+--- accionGuardar() — línea 423 ---
+
+    private void accionGuardar() {
+        if (archivoActual == null) { accionGuardarComo(); return; }
+        guardarEn(archivoActual);
+    }
+
+--- accionGuardarComo() — línea 428 ---
+
+    private void accionGuardarComo() {
+        JFileChooser fc = fileChooser();
+        if (archivoActual != null) fc.setSelectedFile(archivoActual);
+        if (fc.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
+            File f = fc.getSelectedFile();
+            if (!f.getName().endsWith(".asm")) f = new File(f.getAbsolutePath() + ".asm");
+            guardarEn(f);
+        }
+    }
+
+--- guardarEn(File f) — línea 438 ---
+
+    private void guardarEn(File f) {
+        try {
+            Files.write(f.toPath(), editorFuente.getText().getBytes());
+            archivoActual = f;
+            modificado    = false;
+            actualizarTitulo();
+            lblRuta.setText("  " + f.getAbsolutePath());
+            setStatus("●  Guardado", FG_OK);
+        } catch (IOException ex) {
+            error("Error al guardar:\n" + ex.getMessage());
+        }
+    }
+
+--- fileChooser() — línea 962 (helper compartido por abrir y guardar) ---
+
+    private JFileChooser fileChooser() {
+        JFileChooser fc = new JFileChooser();
+        fc.setCurrentDirectory(new File(
+            archivoActual != null ? archivoActual.getParent()
+                : System.getProperty("user.dir") + File.separator + "ejemplos"));
+        fc.setFileFilter(new FileNameExtensionFilter("Archivos ensamblador (*.asm)", "asm"));
+        return fc;
+    }
+
+--- confirmarCambios() — línea 974 ---
+
+    private boolean confirmarCambios() {
+        if (!modificado) return true;
+        int r = JOptionPane.showConfirmDialog(this,
+            "Hay cambios sin guardar. ¿Desea guardarlos?",
+            "Cambios sin guardar", JOptionPane.YES_NO_CANCEL_OPTION);
+        if (r == JOptionPane.YES_OPTION) { accionGuardar(); return !modificado; }
+        return r == JOptionPane.NO_OPTION;
+    }
+
+
+----------------------------------------------------------------
+1. CÓMO CREAR UN NUEVO PROGRAMA USANDO LA INTERFAZ GRÁFICA
+----------------------------------------------------------------
+
+Paso 1 — Abrir la aplicación
+Al ejecutar "java -jar target/p03-sicxe.jar" se abre la ventana principal
+"ENSAMBLADOR SIC XE". El editor aparece vacío con la etiqueta "Sin archivo"
+en la barra de estado inferior.
+
+Paso 2 — Crear un archivo nuevo
+Ve al menú ARCHIVO → Nuevo (o presiona Ctrl+N, o haz clic en el botón "Nuevo"
+de la barra de herramientas). Si había cambios sin guardar, el sistema pregunta
+si deseas guardarlos antes de continuar. El editor se limpia por completo y
+todas las tablas de resultados se vacían.
+
+Paso 3 — Escribir el código fuente
+Escribe el programa ensamblador SIC/XE directamente en el panel "PROGRAMA
+FUENTE SICXE" (panel izquierdo). El editor muestra números de línea en el
+margen izquierdo y usa fuente monoespaciada. En cuanto escribes la primera
+letra, el título de la ventana muestra un asterisco (*) indicando que hay
+cambios sin guardar.
+
+Paso 4 — Guardar el archivo
+Ve a ARCHIVO → Guardar (Ctrl+S). Como es un archivo nuevo, se abre
+automáticamente el diálogo "Guardar como..." apuntando a la carpeta ejemplos/.
+Escribe el nombre del archivo; la extensión .asm se agrega automáticamente si
+no la escribes. Al guardar, la barra inferior muestra la ruta completa y el
+estado cambia a "● Guardado".
+
+
+----------------------------------------------------------------
+2. CÓMO ENSAMBLAR UN PROGRAMA USANDO LA INTERFAZ GRÁFICA
+----------------------------------------------------------------
+
+Hay cuatro niveles de ejecución disponibles:
+
+Opción A — Analizar léxico/sintáctico solamente
+Menú ENSAMBLAR → Analizar (o Ctrl+Z o botón "Analizar código").
+El sistema pasa el texto por el lexer y parser ANTLR4. Si hay errores de
+sintaxis, aparecen en el panel ERRORES y el estado muestra "✘ N error(es)
+sintáctico(s)". Si no hay errores, muestra "● Sin errores sintácticos".
+Las tablas de resultados no se llenan todavía.
+
+Opción B — Ejecutar solo el Paso 1
+Menú ENSAMBLAR → Paso 1 (o Ctrl+Y o botón "Paso 1: Archivo intermedio").
+Se ejecuta el AnalizadorSemantico. Se llenan:
+  - Panel ARCHIVO INTERMEDIO — número de línea, bloque, contador de posición,
+    etiqueta, instrucción, operando.
+  - Panel TABLA DE SÍMBOLOS — nombre, dirección, tipo (A/R), número de bloque.
+  - Panel TABLA DE BLOQUES — bloques definidos con USE, longitudes y
+    direcciones de inicio.
+  - Barra inferior muestra el tamaño del programa en hexadecimal.
+
+Opción C — Ejecutar solo el Paso 2
+Menú ENSAMBLAR → Paso 2 (o Ctrl+X o botón "Paso 2: Código objeto").
+Repite el Paso 1 internamente y luego ejecuta el GeneradorCodigo. Se agrega
+al Archivo Intermedio la columna COD.OBJ con los bytes generados, y el panel
+CÓDIGO OBJETO (REGISTROS) muestra los registros H/D/R/T/M/E con colores
+distintos por tipo.
+
+Opción D — Ensamblar todo (recomendado)
+Menú ENSAMBLAR → Ensamblar (o Ctrl+E o botón "Ensamblar").
+Ejecuta léxico + sintáctico + Paso 1 + Paso 2 en secuencia y además:
+  - Escribe el archivo .obj en disco junto al .asm.
+  - Genera archivos auxiliares: .csv (listado), .sim (tabla de símbolos),
+    .blk (tabla de bloques), y .err si hubo errores.
+  - Abre una ventana secundaria (VentanaResultados) con cuatro pestañas:
+    Listado, Símbolos, Tabla Bloques y Registros obj.
+  - El estado final indica "● Ensamblado correctamente" (verde) o
+    "✘ N error(es)" (rojo).
+
+
+----------------------------------------------------------------
+3. TIEMPO DE IMPLEMENTACIÓN Y CONCLUSIÓN
+----------------------------------------------------------------
+
+Tiempo invertido: aproximadamente 4 a 8 horas de trabajo.
+
+Conclusión:
+El tiempo requerido se explica principalmente por la integración entre capas
+que ya existían —el analizador semántico y el generador de código— y una
+interfaz gráfica Swing que debía reflejar en tiempo real el estado de cada
+etapa del ensamblado. El mayor esfuerzo se concentró en el diseño del layout
+con JSplitPane anidados para organizar los seis paneles simultáneos, la
+implementación de los renderers personalizados (RendererIntermedio,
+RendererSimbolos, RendererBloques) que colorean las celdas según su contenido,
+y la lógica de manejo de archivos que detecta cambios sin guardar y ofrece
+el diálogo de confirmación antes de cualquier acción destructiva. La
+adaptación para mostrar correctamente múltiples secciones de control (CSECT)
+en las mismas tablas también requirió ajustes en los métodos poblarIntermedio,
+poblarSimbolos y poblarBloques.
+
+================================================================
+
+
+================================================================
+SECCIONES DE CONTROL — DEFINICIONES Y EVIDENCIA DE CÓDIGO
+================================================================
+
+----------------------------------------------------------------
+VENTAJAS DE LAS SECCIONES DE CONTROL
+----------------------------------------------------------------
+
+1. Ensamblado y compilación independiente: cada sección (CSECT) se ensambla
+   por separado, lo que permite dividir un programa grande en módulos que
+   pueden desarrollarse, depurarse y mantenerse de forma independiente.
+
+2. Reutilización de módulos: una sección compilada puede enlazarse con
+   distintos programas sin reensamblarla, simplemente referenciando sus
+   símbolos mediante EXTDEF/EXTREF.
+
+3. Archivos objeto separados: el ensamblador genera un .obj por sección,
+   lo que reduce el tiempo de reensamblado cuando solo cambia un módulo.
+
+4. Resolución diferida de referencias: los símbolos externos no se resuelven
+   en el ensamblador, sino en el enlazador (linker/loader), lo que desacopla
+   los módulos.
+
+5. Tabla de símbolos aislada: cada sección tiene su propia TABSIM, por lo que
+   los nombres de símbolos no colisionan entre módulos distintos.
+
+6. En esta práctica: el ensamblador genera registros D (EXTDEF), R (EXTREF)
+   y M (modificación) por sección, que el cargador usa para reubicar y
+   enlazar correctamente cada módulo.
+
+----------------------------------------------------------------
+DIFERENCIA ENTRE SECCIÓN DE CONTROL Y BLOQUE DE PROGRAMA
+----------------------------------------------------------------
+
+SECCIÓN DE CONTROL (CSECT):
+  - Unidad independiente de ensamblado y carga.
+  - Tiene su propio contador de posición que siempre empieza en 0.
+  - Genera su propio archivo objeto (.obj) con registros H/D/R/T/M/E.
+  - Los símbolos de una sección NO son visibles en otra a menos que se
+    exporten con EXTDEF e importen con EXTREF.
+  - Se separan físicamente en disco y se enlazan en tiempo de carga.
+
+BLOQUE DE PROGRAMA (USE):
+  - Subdivisión DENTRO de una misma sección de control.
+  - Todos los bloques comparten la misma tabla de símbolos.
+  - Se usan para agrupar instrucciones del mismo tipo (ej. código, datos,
+    stack) en regiones contiguas en el objeto final.
+  - Al final del Paso 1, los bloques se reordenan calculando la dirección
+    de inicio de cada uno; sus símbolos se ajustan con dirAbsoluta().
+  - No generan archivos objeto separados; todo queda en el mismo .obj.
+
+RESUMEN:
+  CSECT = módulo separado, enlazado externamente.
+  USE   = agrupación interna, reordenada dentro del mismo módulo.
+
+----------------------------------------------------------------
+DIFERENCIA ENTRE DEFINICIÓN EXTERNA Y REFERENCIA EXTERNA
+----------------------------------------------------------------
+
+EXTDEF (Definición externa):
+  - Declara que un símbolo definido EN ESTA sección es exportado para que
+    otros módulos puedan usarlo.
+  - Genera registro D en el archivo objeto con el nombre y la dirección
+    relativa del símbolo dentro de la sección.
+  - Ejemplo: EXTDEF LISTA,RUTINA
+    "LISTA y RUTINA están definidos aquí; otros módulos pueden usarlos."
+
+EXTREF (Referencia externa):
+  - Declara que un símbolo usado EN ESTA sección está definido en OTRO módulo.
+  - El ensamblador asigna valor 0 al símbolo en TABSIM (tipo "E").
+  - Genera registro R en el archivo objeto.
+  - Por cada uso del símbolo en código F4 o WORD, genera un registro M para
+    que el cargador parche la dirección correcta al enlazar.
+  - Ejemplo: EXTREF RDREC,WRREC
+    "RDREC y WRREC se usarán aquí pero están definidos en otro módulo."
+
+----------------------------------------------------------------
+EXPRESIONES CON SÍMBOLOS EXTERNOS
+----------------------------------------------------------------
+
+Cuando una expresión (operando de WORD o instrucción F4) contiene un símbolo
+declarado con EXTREF, el ensamblador:
+
+  1. Asigna valor 0 al símbolo externo en la tabla de símbolos (tipo "E").
+  2. Registra cada término externo como un TermExterno(nombre, signo).
+  3. El valor parcial se calcula con los términos conocidos; los externos se
+     suman con valor 0 en tiempo de ensamblado.
+  4. En Paso 2, por cada TermExterno se emite un registro M para que el
+     cargador ajuste el valor al conocer la dirección real del símbolo.
+
+Reglas del sistema de tipos:
+  - Un externo puede sumarse o restarse (+/-) con símbolos internos.
+  - No puede usarse en multiplicación ni división.
+  - Una expresión puede tener múltiples externos; cada uno genera su M record.
+
+Ejemplo:   WORD  RDREC-INICIO
+  Si RDREC es EXTREF e INICIO es local relocalizable:
+    → genera M con +RDREC (para que el loader sume la dirección real de RDREC)
+    → genera M con el nombre de la sección (para reubicar INICIO)
+
+----------------------------------------------------------------
+CLASE/ESTRUCTURA PARA RECONOCER DIRECTIVAS EXTREF, EXTDEF, CSECT
+----------------------------------------------------------------
+
+Archivo: src/main/java/sicxe/SeccionControl.java (línea 71)
+
+    public static class DirectivaExt {
+        public final boolean      esExtdef;  // true=EXTDEF, false=EXTREF
+        public final List<String> simbolos;
+
+        public DirectivaExt(boolean esExtdef, List<String> simbolos) {
+            this.esExtdef = esExtdef;
+            this.simbolos = new ArrayList<>(simbolos);
+        }
+    }
+
+Esta clase interna registra cada aparición de EXTDEF o EXTREF en el fuente,
+en orden de aparición, para que GeneradorCodigo emita D y R en el mismo orden.
+
+La SeccionControl (línea 9) es la estructura que representa una sección
+completa. Sus campos clave:
+
+    public String  nombre;
+    public boolean esPrincipal;
+    public int     direccionInicio;
+    public List<DirectivaExt> directivasExt;
+
+El Paso 1 procesa las tres directivas en procesarDirectiva() —
+casos "CSECT" (línea 623), "EXTDEF" (línea 652) y "EXTREF" (línea 672).
+
+    // CSECT: crea nueva SeccionControl y activa sus alias
+    case "CSECT" -> {
+        SeccionControl nueva = new SeccionControl(etiq, false, 0);
+        secciones.add(nueva);
+        activarSeccion(nueva);
+        ...
+    }
+    // EXTDEF: registra símbolos a exportar
+    case "EXTDEF" -> {
+        seccionActual.simbolosExportados.add(s);
+        seccionActual.directivasExt.add(new DirectivaExt(true, syms));
+    }
+    // EXTREF: registra símbolo con valor 0 y tipo "E"
+    case "EXTREF" -> {
+        tablaSimbolos.put(s, 0);
+        tipoSimbolos.put(s, "E");
+        seccionActual.simbolosExternos.add(s);
+        seccionActual.directivasExt.add(new DirectivaExt(false, syms));
+    }
+
+----------------------------------------------------------------
+CLASE/ESTRUCTURA PARA IDENTIFICAR SÍMBOLOS EXTERNOS EN TABSIM
+----------------------------------------------------------------
+
+Archivo: src/main/java/sicxe/SeccionControl.java (líneas 17–25)
+
+    public Map<String, Integer> tablaSimbolos  = new LinkedHashMap<>();
+    public Map<String, String>  tipoSimbolos   = new LinkedHashMap<>(); // A, R, E
+    public Map<String, Integer> bloqueSimbolos = new LinkedHashMap<>();
+    public Set<String>  simbolosExternos   = new LinkedHashSet<>(); // EXTREF
+    public List<String> simbolosExportados = new ArrayList<>();     // EXTDEF
+
+Símbolo EXTREF en TABSIM (AnalizadorSemantico.java línea 684):
+    tablaSimbolos.put(s, 0);
+    tipoSimbolos.put(s, "E");    // tipo Externo
+    bloqueSimbolos.put(s, -1);   // sin bloque definido
+
+En la GUI (InterfazGrafica.java método poblarSimbolos, línea 761):
+    boolean esExt = sec.simbolosExternos.contains(sym);
+    // → columna Tipo muestra "E (Ext)", columna Ext. muestra "EXTREF"
+    // → columna Dirección muestra "N/A"
+
+Clase TermExterno (AnalizadorSemantico.java, línea 22):
+Representa un término externo dentro de una expresión evaluada:
+
+    public static class TermExterno {
+        public final String nombre;
+        public final int    signo; // +1 o -1
+    }
+
+----------------------------------------------------------------
+FUNCIONES/MÉTODOS PARA EVALUACIÓN DE EXPRESIONES CON EXTERNOS
+----------------------------------------------------------------
+
+Archivo: src/main/java/sicxe/AnalizadorSemantico.java
+
+--- evaluarExpresion() — línea 720 ---
+Si la expresión tiene externos, los devuelve sin validar netoR interno:
+
+    ResultadoExpr evaluarExpresion(SICXEParser.ExpresionContext ctx,
+            boolean exigirDefinidos) throws Exception {
+        ResultadoExpr r = evaluarExpresionConBloque(ctx, exigirDefinidos, false);
+        if (r.tieneExternos()) return r;  // externos: omitir validación
+        return validarTipoFinal(r);
+    }
+
+--- evaluarFactorConBloque() — línea 781 ---
+Detecta si el ID es externo y crea TermExterno(id, +1) con valor 0:
+
+    if (seccionActual.simbolosExternos.contains(id)) {
+        List<TermExterno> ext = new ArrayList<>();
+        ext.add(new TermExterno(id, 1));
+        return new ResultadoExpr(0, 0, ext);
+    }
+
+--- agregarExternos() — línea 763 ---
+Propaga TermExterno al nivel superior respetando el signo (+/-):
+
+    private void agregarExternos(List<TermExterno> dest,
+            List<TermExterno> src, int signo) {
+        for (TermExterno te : src)
+            dest.add(new TermExterno(te.nombre, te.signo * signo));
+    }
+
+Archivo: src/main/java/sicxe/GeneradorCodigo.java
+
+--- ExprParser.parseFactor() — línea 384 ---
+Evaluador de expresiones del Paso 2. Detecta tipo "E" en TABSIM:
+
+    if (tipo.equals("E")) {
+        List<AnalizadorSemantico.TermExterno> ext = new ArrayList<>();
+        ext.add(new AnalizadorSemantico.TermExterno(id, 1));
+        return new AnalizadorSemantico.ResultadoExpr(0, 0, ext);
+    }
+
+----------------------------------------------------------------
+FUNCIONES/MÉTODOS PARA REGISTROS DE MODIFICACIÓN CON EXTERNOS
+----------------------------------------------------------------
+
+Archivo: src/main/java/sicxe/GeneradorCodigo.java
+
+--- Bucle de registros M en escribirObj() — línea 616 ---
+
+Para instrucciones F4 (5 medios bytes a partir de dirAbs+1):
+
+    if (e.formato == 4 && e.errorP2.isBlank()) {
+        EvalResult ev = evaluarOperandoP2(limpiarOpr(e.operando));
+        if (ev.error == null) {
+            if (ev.netoR == 1)
+                agregarRegM(regM, String.format("M%06X05 +%s", dirAbs+1, nom6));
+            else if (ev.netoR == -1)
+                agregarRegM(regM, String.format("M%06X05 -%s", dirAbs+1, nom6));
+            for (var te : ev.externos) {
+                String sig = te.signo > 0 ? "+" : "-";
+                agregarRegM(regM, String.format("M%06X05 %s%s", dirAbs+1, sig, te.nombre));
+            }
+        }
+    }
+
+Para directiva WORD (6 medios bytes a partir de dirAbs):
+
+    if ("WORD".equals(e.instruccion) && e.errorP2.isBlank()) {
+        EvalResult ev = evaluarOperandoP2(e.operando.trim());
+        if (ev.error == null) {
+            if (ev.netoR == 1)
+                agregarRegM(regM, String.format("M%06X06 +%s", dirAbs, nom6));
+            for (var te : ev.externos) {
+                String sig = te.signo > 0 ? "+" : "-";
+                agregarRegM(regM, String.format("M%06X06 %s%s", dirAbs, sig, te.nombre));
+            }
+        }
+    }
+
+Formato del registro M:
+    M[dir 6 hex][longitud en medios bytes 2 hex] [signo][nombre]
+    Ejemplo: M00104505 +RDREC
+
+--- agregarRegM() — línea 669 ---
+
+    private void agregarRegM(List<String> dest, String regM) {
+        dest.add(regM); registros.add(regM);
+    }
+
+----------------------------------------------------------------
+FUNCIONES/MÉTODOS PARA CREAR ARCHIVOS OBJETO POR SECCIÓN
+----------------------------------------------------------------
+
+Archivo: src/main/java/sicxe/GeneradorCodigo.java
+
+--- escribirObj(String rutaObj) — línea 555 ---
+Genera el archivo .obj completo de UNA sección con todos sus registros:
+
+    public void escribirObj(String rutaObj) throws IOException {
+        // H: nombre (6 chars), dirección inicio, longitud total
+        String regH = String.format("H%-6s%06X%06X", nom6, dirIni, longitud);
+
+        // D/R: en el orden de aparición en el fuente (via directivasExt)
+        for (SeccionControl.DirectivaExt dr : seccion.directivasExt) {
+            if (dr.esExtdef) { /* D: nombre + dirección relativa por símbolo */ }
+            else             { /* R: lista de nombres de símbolos externos   */ }
+        }
+
+        // T: bloques de hasta 30 bytes de código objeto contiguo
+        // M: relocalización interna y externa (generados en el bucle anterior)
+
+        // E: sección principal → E[dirección]; CSECT → E (sin dirección)
+        String regE = seccion.esPrincipal
+            ? String.format("E%06X", dirEntrada & 0xFFFFFF) : "E";
+    }
+
+Archivo: src/main/java/sicxe/InterfazGrafica.java
+
+--- ejecutarPaso2() — línea 627 ---
+Coordina la generación de un GeneradorCodigo y un archivo .obj por sección:
+
+    for (SeccionControl sec : sem.getSecciones()) {
+        GeneradorCodigo gen = new GeneradorCodigo(sec);
+        if (sec.esPrincipal) gen.setTodasSecciones(todas);
+        gen.generar();
+        String rutaObj = base
+            + (secciones.size() > 1 ? "_" + sec.nombre : "")
+            + ".obj";
+        gen.escribirObj(rutaObj);
+    }
+
+----------------------------------------------------------------
+1. GRÁFICAMENTE — INTEGRACIÓN DE TABLAS DE SÍMBOLOS EN LA GUI
+----------------------------------------------------------------
+
+El panel "TABLA DE SÍMBOLOS" (construirPanelSimbolos, línea 260) usa un
+JTable con 6 columnas:
+
+    {"Símbolo", "Dirección/Valor", "Tipo", "No. Bloque", "Ext.", "Sección"}
+
+Cuando hay múltiples secciones, poblarSimbolos() (línea 753) itera TODAS
+las SeccionControl y agrega sus filas al mismo modelo, usando la columna
+"Sección" para distinguir a cuál CSECT pertenece cada símbolo:
+
+    for (SeccionControl sec : secciones) {
+        for (Map.Entry<String, Integer> en : sec.tablaSimbolos.entrySet()) {
+            boolean esExt = sec.simbolosExternos.contains(sym);
+            modeloSimbolos.addRow(new Object[]{
+                sym,
+                esExt ? "N/A" : String.format("%04X", val),
+                tipoStr,     // "A (Abs)", "R (Rel)", "E (Ext)"
+                blqStr,      // número + nombre de bloque
+                esExt ? "EXTREF" : (exportado ? "EXTDEF" : ""),
+                sec.nombre   // ← identifica la sección de control
+            });
+        }
+    }
+
+El renderer RendererSimbolos (línea 1051) colorea:
+  - Símbolo → verde claro
+  - Dirección → azul claro
+  - Tipo A → amarillo / Tipo R → verde
+  - Filas EXTREF muestran "N/A" en dirección
+
+----------------------------------------------------------------
+2. LÓGICAMENTE — TABLAS DE BLOQUES CON 2+ SECCIONES DE CONTROL
+----------------------------------------------------------------
+
+Cada SeccionControl tiene su propia tablaBloques completamente independiente
+(SeccionControl.java, líneas 36–39):
+
+    public List<int[]>           tablaBloques   = new ArrayList<>();
+    public List<String>          nombresBloques = new ArrayList<>();
+    public Map<String, Integer>  nombreABloque  = new LinkedHashMap<>();
+    public Map<Integer, Integer> cpBloques      = new LinkedHashMap<>();
+
+Flujo de generación (AnalizadorSemantico.java):
+
+  a) Al encontrar START o CSECT: activarSeccion() + inicializarBloqueDefault()
+     crea el bloque 0 ("por omisión") con cp = 0.
+
+  b) Cada USE dentro de la sección crea o reactiva un bloque adicional con
+     su propio cp independiente.
+
+  c) Al encontrar el siguiente CSECT o END, se llama finalizarBloques()
+     (línea 388) que calcula longitudes y direcciones de inicio:
+
+       for (int[] b : tablaBloques)
+           b[2] = cpBloques.getOrDefault(b[0], 0);   // longitud
+       tablaBloques.get(0)[3] = 0;
+       for (int i = 1; i < tablaBloques.size(); i++)
+           tablaBloques.get(i)[3] = tablaBloques.get(i-1)[3]
+                                  + tablaBloques.get(i-1)[2]; // dir inicio
+
+  d) En la GUI, poblarBloques() (línea 779) combina todas las secciones en
+     el mismo JTable con columna "Sección":
+
+     {"No. Bloque", "Nombre", "Longitud", "Dir. Inicio", "Sección"}
+
+  e) Cada sección numera sus bloques desde 0 de forma independiente; la
+     columna "Sección" permite diferenciarlos visualmente.
+
+----------------------------------------------------------------
+3. FÍSICAMENTE — ARCHIVOS OBJETO CON 2+ SECCIONES DE CONTROL
+----------------------------------------------------------------
+
+El método ejecutarPaso2() (InterfazGrafica.java, línea 627) coordina la
+generación:
+
+  a) Por cada SeccionControl se crea una instancia independiente de
+     GeneradorCodigo(sec), con su propio listado, TABSIM y tablaBloques.
+
+  b) Solo la sección principal recibe setTodasSecciones(todas), para poder
+     encontrar END aunque esté físicamente en otra parte del fuente.
+
+  c) gen.generar() rellena codigoObjeto en cada EntradaListado.
+
+  d) Nombre del archivo de salida (línea 641):
+       1 sección:   <base>.obj
+       2+ secciones: <base>_<NOMBRE_SECCION>.obj
+     Ejemplo: PROGA.asm + CSECT PROGB → PROGA.obj y PROGA_PROGB.obj
+
+  e) gen.escribirObj(rutaObj) escribe el archivo con estructura:
+       H — cabecera (nombre, dirección inicio, longitud de esta sección)
+       D — símbolos exportados (EXTDEF) con sus direcciones relativas
+       R — símbolos referenciados de otros módulos (EXTREF)
+       T — código objeto (máximo 30 bytes por registro, sin huecos)
+       M — registros de modificación (F4 y WORD con relocalizables/externos)
+       E — dirección de entrada (solo sección principal)
+           Las secciones CSECT emiten "E" sin dirección.
+
+  Ejemplo de salida con dos secciones PROGA y PROGB:
+       PROGA.obj  → H PROGA 001000 002A  /  D, R, T..., M..., E001000
+       PROGA_PROGB.obj → H PROGB 000000 001C  /  D, R, T..., M..., E
+
+================================================================

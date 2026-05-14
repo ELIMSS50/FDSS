@@ -1,0 +1,400 @@
+═══════════════════════════════════════════════════════════════════════════════
+REGISTRO COMPLETO DE IMPLEMENTACIONES — Ensamblador SIC/XE
+Bloques de Programa + Secciones de Control + Correcciones Paso 2
+═══════════════════════════════════════════════════════════════════════════════
+
+Organizado por archivo. Para cada ítem se indica:
+  • Ubicación exacta (línea o método)
+  • Qué se hizo
+  • Por qué / cómo funciona
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[1] SICXE.g4  — src/main/antlr4/sicxe/SICXE.g4
+    GRAMÁTICA ANTLR4
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  [1.1] Tokens nuevos — líneas 167-169
+        KCSECT  : 'CSECT'  ;
+        KEXTDEF : 'EXTDEF' ;
+        KEXTREF : 'EXTREF' ;
+        → Permiten que el lexer reconozca estas palabras reservadas como tokens
+          propios en lugar de caer en ID.
+
+  [1.2] Regla listaIds — líneas 117-119
+        listaIds : ID (COMA ID)* ;
+        → Usada por EXTDEF y EXTREF para parsear listas de símbolos separados
+          por coma: "EXTDEF LISTA, BUFFER, INPUT"
+
+  [1.3] Directiva nueva — regla 'directiva', líneas 112-114
+        | KCSECT                   → inicia nueva sección (etiq obligatoria)
+        | KEXTDEF listaIds         → exporta símbolos a otros módulos
+        | KEXTREF listaIds         → importa símbolos de otros módulos
+        → El parser reconoce estas tres directivas dentro del cuerpo del programa.
+
+  [1.4] tokensError — línea 37
+        | KCSECT | KEXTDEF | KEXTREF
+        → Agregados a la regla de recuperación de errores para que líneas
+          mal formadas con esas palabras no bloqueen el parser.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2] SeccionControl.java  — src/main/java/sicxe/SeccionControl.java
+    CLASE NUEVA — encapsula el estado completo de una sección
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  [2.1] Identidad — líneas 11-14
+        nombre, esPrincipal, direccionInicio
+        → Diferencia la sección START (principal) de las CSECT.
+
+  [2.2] Tabla de símbolos propia — líneas 17-19
+        tablaSimbolos  (LinkedHashMap<String,Integer>)
+        tipoSimbolos   (LinkedHashMap<String,String>)   → "A", "R", "E"
+        bloqueSimbolos (LinkedHashMap<String,Integer>)
+        → Cada sección tiene su TABSIM independiente.
+
+  [2.3] Referencias externas — líneas 22-29
+        simbolosExternos   (Set<String>)  → declarados con EXTREF
+        simbolosExportados (List<String>) → declarados con EXTDEF
+        directivasExt      (List<DirectivaExt>) → orden de aparición en fuente
+                                                   para generar D/R en orden correcto
+        → DirectivaExt (clase interna): marca si es EXTDEF o EXTREF
+          y guarda la lista de símbolos de esa directiva.
+
+  [2.4] Listado y bloques — líneas 32-39
+        listado        (List<EntradaListado>) → líneas de esta sección
+        errores        (List<String>)
+        tablaBloques   (List<int[]>)    → bloques USE internos de la sección
+        nombresBloques (List<String>)
+        nombreABloque  (Map<String,Integer>)
+        cpBloques      (Map<Integer,Integer>) → contador por bloque
+
+  [2.5] Estado mutable del Paso 1 — líneas 42-46
+        bloqueActual, contadorBloque, contloc, valorBase, simboloBase
+        → Guardados/restaurados por guardarEstado()/activarSeccion() en
+          AnalizadorSemantico cuando se cambia de sección.
+
+  [2.6] Datos del Paso 2 — líneas 49-51
+        registrosObjeto (List<String>)  → H/D/R/T/M/E generados
+        longitudTotal   (int)
+        dirEntrada      (int)
+
+  [2.7] calcularLongitud() — línea 62
+        Suma las longitudes de todos los bloques USE de la sección.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[3] EntradaListado.java  — src/main/java/sicxe/EntradaListado.java
+    CAMPO NUEVO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  [3.1] Campo nombreSeccion (String)
+        → Indica a qué sección pertenece cada línea del listado.
+          Se usa en la columna "SEC" de la tabla intermedia en la GUI
+          y en VentanaResultados para agrupar líneas por sección.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[4] AnalizadorSemantico.java  — src/main/java/sicxe/AnalizadorSemantico.java
+    PASO 1 — REFACTORIZACIÓN MAYOR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  [4.1] Arquitectura de "alias fields" — líneas 57-80
+        private List<SeccionControl> secciones
+        private SeccionControl seccionActual
+        private Map<String,Integer> tablaSimbolos  ← alias
+        private Map<String,String>  tipoSimbolos   ← alias
+        private Map<String,Integer> bloqueSimbolos ← alias
+        ... (más alias)
+        → Los campos del analizador NO apuntan a datos fijos: se redirigen
+          a los datos de la sección activa. Todo el código existente del
+          Paso 1 sigue funcionando sin cambios porque usa los alias,
+          y al cambiar de sección solo se actualiza a qué Map/List apuntan.
+
+  [4.2] guardarEstado() — línea 106
+        Guarda los valores escalares actuales (contloc, bloqueActual, etc.)
+        de vuelta en seccionActual antes de cambiar de sección.
+
+  [4.3] activarSeccion(SeccionControl sec) — línea 116
+        1. Llama guardarEstado() para salvar la sección actual
+        2. Reasigna TODOS los alias (tablaSimbolos, listado, cpBloques, etc.)
+           a los campos de la nueva sección
+        3. Restaura los escalares (contloc, bloqueActual, etc.) desde sec
+        → Es el mecanismo central del soporte multi-sección.
+
+  [4.4] enterEncabezado() — línea 192
+        Crea la SeccionControl PRINCIPAL (esPrincipal=true) con la dirección
+        del START, la activa, e inicializa el bloque por omisión (bloque 0).
+
+  [4.5] CSECT en procesarDirectiva() — línea 622
+        Cuando se encuentra LABEL CSECT:
+        1. Guarda y finaliza la sección activa (cpBloques + guardarEstado + finalizarBloques)
+        2. Crea new SeccionControl(etiq, false, 0) y la agrega a secciones
+        3. activarSeccion(nueva) → todos los alias apuntan a la nueva
+        4. Agrega entrada CSECT al listado de la NUEVA sección
+
+  [4.6] EXTDEF en procesarDirectiva() — línea 651
+        Registra los símbolos en:
+          seccionActual.simbolosExportados (List)
+          seccionActual.directivasExt (para generar registros D en orden)
+        Valida que aparezca inmediatamente después de START o CSECT.
+
+  [4.7] EXTREF en procesarDirectiva() — línea 671
+        Registra los símbolos en:
+          tablaSimbolos[sym] = 0       (valor placeholder)
+          tipoSimbolos[sym]  = "E"     (tipo Externo)
+          bloqueSimbolos[sym] = -1
+          seccionActual.simbolosExternos
+          seccionActual.directivasExt  (para generar registros R en orden)
+        → Tipo "E" distingue externos de locales (tipo "A" o "R").
+
+  [4.8] TermExterno (clase pública interna) — línea 22
+        public static class TermExterno { String nombre; int signo; }
+        → Representa un símbolo EXTREF dentro de una expresión (ej. ENDA+6).
+          Usado en Pass 1 y Pass 2 para generar registros M con tag *SE.
+
+  [4.9] ResultadoExpr — línea 30
+        int valor, String tipo, int netoR, List<TermExterno> externos
+        → Transporta el resultado de evaluar una expresión incluyendo
+          términos externos. Si hay externos, tipo="EX".
+
+  [4.10] enterCierre() (END) — línea 364
+         Antes: agregaba END al listado de la sección activa con su CP.
+         Ahora (corrección):
+           • cpBloques.put + guardarEstado() al inicio
+           • Recupera seccionPrincipal de la lista de secciones
+           • cpBloque0 = secPrincipal.cpBloques.getOrDefault(0,...) → CP
+             correcto de PRINCIPAL (no del CSECT activo)
+           • e.nombreSeccion = secPrincipal.nombre
+           • listado.add(e) → se queda en el listado del CSECT activo
+             (posición fuente no cambia)
+         → El END muestra el CP de PRINCIPAL (ej. 0x0A) aunque físicamente
+           esté en el listado del último CSECT.
+
+  [4.11] finalizarBloques() — línea 383
+         Calcula longitudes y direcciones de inicio de cada bloque USE.
+         Se llama al activar un CSECT (para finalizar la sección anterior)
+         y en enterCierre (para finalizar la última sección).
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[5] GeneradorCodigo.java  — src/main/java/sicxe/GeneradorCodigo.java
+    PASO 2 — GENERACIÓN POR SECCIÓN + CORRECCIONES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  [5.1] Constructor GeneradorCodigo(SeccionControl sec) — línea 70
+        Antes recibía listas/mapas sueltos. Ahora recibe una SeccionControl
+        completa y extrae todos los datos de ella. Una instancia por sección.
+
+  [5.2] CORRECCIÓN DEL PC en generar() — (antes línea ~109, ahora corregida)
+        Antes:  int pc = dirAbsoluta(listado.get(idx + 1))
+          → tomaba la dirección del SIGUIENTE ENTRY en el listado fuente.
+            Si ese entry era de otro bloque, su dirAbsoluta = inicio de ese
+            bloque → PC completamente incorrecto.
+        Ahora:  int pc = dirAbsoluta(e) + (e.formato > 0 ? e.formato : 0)
+          → PC = dirección absoluta de la instrucción actual + sus bytes.
+            Para F3: pc = dirAbs(e) + 3.  Para F4: pc = dirAbs(e) + 4.
+        EJEMPLO: LDA LENGTH (F3, bloque 0, contloc=0x08)
+          LENGTH en bloque 1 (dirIni=0x15), contloc local=0x06 → abs=0x1B
+          Antes: pc = 0x15 → disp = 0x1B - 0x15 = 0x06 → código 032006 ✗
+          Ahora: pc = 0x08+3 = 0x0B → disp = 0x1B - 0x0B = 0x10 → 032010 ✓
+
+  [5.3] Registros D (EXTDEF) en escribirObj() — línea ~540
+        Por cada DirectivaExt de tipo esExtdef=true:
+          D<nombre6><dir6hex>... hasta 6 símbolos por registro D
+        La dirección es symRelativo(sym) = symAbsoluto(sym) - direccionIni
+        → En el orden exacto de aparición de EXTDEF en el fuente.
+
+  [5.4] Registros R (EXTREF) en escribirObj() — línea ~551
+        Por cada DirectivaExt de tipo esExtdef=false:
+          R<nombre6><nombre6>... hasta 12 símbolos por registro R
+        → En el orden exacto de aparición de EXTREF en el fuente.
+
+  [5.5] Registro M para instrucciones F4 — línea ~586
+        Si la instrucción F4 tiene un relativo interno sin parear (netoR=1):
+          M<addr+1>05 *R+<progName>  o  M<addr+1>05 *R-<progName>
+        Por cada símbolo externo en la expresión:
+          M<addr+1>05 *SE+<extName>  o  M<addr+1>05 *SE-<extName>
+
+  [5.6] Registro M para WORD con expresión — línea ~604
+        Igual que F4 pero con longitud 06 (WORD = 3 bytes = 6 hex chars).
+
+  [5.7] CORRECCIÓN del Registro E — línea ~626
+        Antes: String.format("E%06X", 0) → "E000000" para CSECTs
+        Ahora:
+          Sección principal → "E" + String.format("%06X", dirEntrada)
+          Sección CSECT     → solo "E"  (sin dirección)
+
+  [5.8] Búsqueda cruzada de END — resolverDirEntrada() — línea ~498
+        Para la sección PRINCIPAL: si END no está en su listado propio
+        (porque cayó en el último CSECT), busca en todasSecciones.
+        Campo: private List<SeccionControl> todasSecciones = null
+        Setter: setTodasSecciones(List<SeccionControl>)
+        → Solo se activa para la sección principal (ver InterfazGrafica [7.5])
+
+  [5.9] procesarEnd(EntradaListado e) — método nuevo
+        Con operando (label, ej. "REF2"):
+          → Busca directamente en tablaSimbolos de la sección principal
+          → dirEntrada = symAbsoluto(sym)
+             = valor_en_tabsim + dirIni_del_bloque_donde_está
+          → NO usa evaluarOperandoP2 (que podía marcar error por tipo R)
+        Sin operando:
+          → Llama obtenerPrimeraInstrEjecutable()
+
+  [5.10] CORRECCIÓN de obtenerPrimeraInstrEjecutable()
+         Antes: buscaba cualquier instrucción y devolvía e.contloc
+           → e.contloc es relativo al bloque → incorrecto para bloques ≠ 0
+         Ahora:
+           1. Busca instrucción ejecutable en BLOQUE 0 (el bloque del START)
+           2. Fallback: primera ejecutable de cualquier bloque
+           3. Retorna dirAbsoluta(e) en ambos casos (dirección absoluta real)
+
+  [5.11] dirAbsoluta(EntradaListado e) — línea ~654
+         Bloque 0:   return e.contloc  (ya incluye direccionIni)
+         Otro bloque: return e.contloc + b[3] + direccionIni
+                      donde b[3] = dirección de inicio del bloque
+         → Convierte dirección relativa al bloque en dirección absoluta.
+
+  [5.12] symAbsoluto(String id) — línea ~662
+         Bloque 0:    return tablaSimbolos[id]  (ya es absoluto)
+         Tipo "A":    return valor as-is
+         Tipo "E":    return valor as-is (externo, valor=0)
+         Otro bloque: return valor + b[3] + direccionIni
+         → Igual que dirAbsoluta pero para símbolos.
+
+  [5.13] symRelativo(String id) — línea ~674
+         return symAbsoluto(id) - direccionIni
+         → Para registros D: dirección relativa al inicio de la sección.
+
+  [5.14] EvalResult con externos — clase interna línea ~271
+         campos: valor, netoR, error, List<TermExterno> externos
+         → Cuando la expresión contiene símbolos EXTREF, los acumula
+           en 'externos' para generar los registros M *SE correspondientes.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[6] VentanaResultados.java  — src/main/java/sicxe/VentanaResultados.java
+    VENTANA SECUNDARIA DE RESULTADOS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  [6.1] Constructor principal — línea 40
+        VentanaResultados(String nombreArchivo,
+                          List<SeccionControl> secciones,
+                          List<String> erroresSintacticos,
+                          List<String> erroresSemanticos,
+                          List<String> erroresPaso2)
+        → Recibe la lista completa de secciones. Una sección ≠ una pestaña.
+
+  [6.2] JTabbedPane externo por sección — línea 62
+        Una pestaña por SeccionControl. La sección principal tiene "★".
+        Última pestaña = errores globales.
+
+  [6.3] construirPanelSeccion(SeccionControl sec) — línea 138
+        Mini-cabecera: muestra nombre, longitud, nº de símbolos, nº de bloques,
+                       símbolos EXTDEF y EXTREF de la sección.
+        JTabbedPane interno con 4 pestañas:
+          • Listado      → construirTabListado(sec)
+          • Símbolos     → construirTabSimbolos(sec)
+          • Bloques      → construirTabBloques(sec)
+          • Registros obj→ construirTabRegistros(sec)
+        → Cada pestaña usa SOLO los datos de esa sección.
+
+  [6.4] construirTabSimbolos(sec) — línea 240
+        Columnas: Símbolo | Valor hex | Valor dec | Tipo | No.Bloque | Rol
+        Rol = "EXTDEF" o "EXTREF" o vacío.
+        Colores: EXTREF=morado, EXTDEF=amarillo, A=naranja, R=verde.
+
+  [6.5] construirTabBloques(sec) — línea 290
+        Columnas: No.Bloque | Nombre | Longitud (hex) | Dir.Inicio (hex)
+        Datos de sec.tablaBloques + sec.nombresBloques.
+
+  [6.6] construirTabRegistros(sec) — línea 328
+        Tabla de dos columnas: Tipo | Registro completo
+        Colores por tipo de registro:
+          H=azul claro, D=amarillo, R=morado, T=dorado, M=magenta, E=verde
+
+  [6.7] Constructor legado — línea 88
+        Mantiene compatibilidad con llamadas antiguas de un solo módulo.
+        Construye una SeccionControl sintética y delega al constructor nuevo.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[7] InterfazGrafica.java  — src/main/java/sicxe/InterfazGrafica.java
+    VENTANA PRINCIPAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  [7.1] Columna SEC en tabla intermedia — construirPanelIntermedio()
+        Columnas: LN | BLQ | CP | ETIQUETA | INSTRUCCIÓN | OPERANDO |
+                  COD.OBJ | ERROR | SEC
+        SEC muestra el nombre de la sección de cada línea (sec.nombre).
+
+  [7.2] Columnas Ext. y Sección en TABSIM — construirPanelSimbolos()
+        Columnas: Símbolo | Dirección/Valor | Tipo | No.Bloque | Ext. | Sección
+        Ext. = "EXTREF" o "EXTDEF". Sección = nombre de la sección.
+
+  [7.3] Tabla de bloques con columna Sección — construirPanelBloques()
+        Columnas: No.Bloque | Nombre | Longitud | Dir.Inicio | Sección
+
+  [7.4] poblarBloques() también en Paso 1 — accionPaso1()
+        Antes: la tabla de bloques solo se llenaba en Paso 2 y Ensamblar.
+        Ahora: también se llama poblarBloques(ultimasSecciones) en Paso 1.
+
+  [7.5] VentanaResultados abre al Ensamblar — accionEnsamblar()
+        Al final del ensamblado completo se abre VentanaResultados con
+        las secciones, permitiendo ver símbolos y bloques por sección.
+        new VentanaResultados(nombre, ultimasSecciones, errSint, errSem, errP2)
+        NO se abre en Paso 1 ni Paso 2.
+
+  [7.6] Registros objeto con colores — areaObjeto (JTextPane)
+        Antes: private JTextArea areaObjeto  (texto plano)
+        Ahora: private JTextPane areaObjeto  (texto con estilos)
+        Método: mostrarRegistrosColoreados(List<String>)
+          H=azul, D=amarillo, R=morado, T=dorado, M=magenta, E=verde
+
+  [7.7] ejecutarPaso2() — generadores por sección — línea ~593
+        for (SeccionControl sec : sem.getSecciones()) {
+            GeneradorCodigo gen = new GeneradorCodigo(sec);
+            if (sec.esPrincipal) gen.setTodasSecciones(todas);
+            gen.generar();
+            gen.escribirObj(rutaObj);
+        }
+        Con múltiples secciones: archivo base_NOMBRE.obj por sección.
+        Al principal le pasa todasSecciones para búsqueda cruzada de END.
+
+  [7.8] escribirArchivos() — archivos generados — línea ~625
+        Ya existía: base.csv, base.err
+        Nuevo: por cada sección:
+          base.sim  ó  base_NOMBRE.sim  → tabla de símbolos
+          base.blk  ó  base_NOMBRE.blk  → tabla de bloques
+        Métodos: escribirTablaSim(SeccionControl, String)
+                 escribirTablaBlk(SeccionControl, String)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RESUMEN DE ARCHIVOS POR CAMBIO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  SICXE.g4              → tokens CSECT/EXTDEF/EXTREF, regla listaIds
+  SeccionControl.java   → NUEVO — estado completo por sección
+  EntradaListado.java   → campo nombreSeccion
+  AnalizadorSemantico.java → alias fields, activarSeccion, CSECT/EXTDEF/EXTREF,
+                             TermExterno, enterCierre corregido
+  GeneradorCodigo.java  → PC corregido, registros D/R, M con *R/*SE,
+                          registro E corregido, búsqueda cruzada END,
+                          procesarEnd, obtenerPrimeraInstrEjecutable corregido
+  VentanaResultados.java → pestañas por sección, Símbolos/Bloques/Registros por sección
+  InterfazGrafica.java   → columna SEC, tabla bloques en Paso 1, VentanaResultados
+                           al ensamblar, JTextPane con colores, archivos .sim/.blk
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PENDIENTE / PROBLEMAS AÚN NO RESUELTOS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  • Registro E de la sección principal: procesarEnd() usa symAbsoluto(sym)
+    que debería ser correcto, pero en ciertos ejemplos puede no resolver bien.
+    Verificar con SECCIONES_EJEMPLO2_PRINCIPAL_MODULO.asm que:
+      - END REF2 → E000004  (REF2 en bloque 0 de PRINCIPAL, contloc=4)
+    Si sigue fallando, revisar si tablaSimbolos de PRINCIPAL tiene "REF2"
+    y si tipoSimbolos["REF2"] es "R" (no "E").
+
+═══════════════════════════════════════════════════════════════════════════════

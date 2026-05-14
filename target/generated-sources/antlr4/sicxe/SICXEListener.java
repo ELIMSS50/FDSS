@@ -168,6 +168,16 @@ public interface SICXEListener extends ParseTreeListener {
 	 */
 	void exitDirectiva(SICXEParser.DirectivaContext ctx);
 	/**
+	 * Enter a parse tree produced by {@link SICXEParser#listaIds}.
+	 * @param ctx the parse tree
+	 */
+	void enterListaIds(SICXEParser.ListaIdsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link SICXEParser#listaIds}.
+	 * @param ctx the parse tree
+	 */
+	void exitListaIds(SICXEParser.ListaIdsContext ctx);
+	/**
 	 * Enter a parse tree produced by {@link SICXEParser#contenidoByte}.
 	 * @param ctx the parse tree
 	 */

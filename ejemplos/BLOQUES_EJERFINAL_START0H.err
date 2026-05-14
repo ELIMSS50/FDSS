@@ -1,0 +1,14 @@
+=== Errores Sintácticos ===
+x Error en linea 1, columna 8: extraneous input 'L' expecting 'START' 'L'
+
+=== Errores Semánticos ===
+x Error en línea 14 [EQU]: Error en EQU 'NUM+TABLA': Símbolo 'TABLA' pertenece al bloque 0, se requiere del bloque 1
+x Error en línea 25 [+STA]: Símbolo duplicado 'CLOOP'
+x Error en línea 29 [EQU]: Error en EQU '((SALTO-CTE)-(-EXPR2))+15': Símbolo 'SALTO' pertenece al bloque 2, se requiere del bloque 1
+
+=== Errores Paso 2 ===
+x Error P2 en línea 31 [END FIRST]: Símbolo de END no encontrado en tabla de la sección principal: 'FIRST'
+x Error P2 en línea 18 [LDS TEX,X]: Símbolo no encontrado en TABSIM: 'TEX'
+x Error P2 en línea 21 [WORD (CAD+VALOR)-NUM]: Expresión inválida: 2 relativos positivos sin aparear
+x Error P2 en línea 23 [+LDT #NUM-SALTO]: Expresión inválida: relativo negativo no apareado
+x Error P2 en línea 30 [+LDA NUM,X]: Modo de direccionamiento no existe: valor absoluto 14 ≤ 4095 en Formato 4

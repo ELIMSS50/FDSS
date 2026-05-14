@@ -1,0 +1,15 @@
+=== TABLA DE SÍMBOLOS: EJERFINA ===
+SÍMBOLO      VALOR(HEX) TIPO   BLOQUE               ROL     
+------------------------------------------------------------
+TABLA        0002       R      0 ((por omisión))            
+VALOR        0026       R      0 ((por omisión))            
+CLOOP        0026       R      0 ((por omisión))            
+NUM          000E       A      1 (DATOS)                    
+TEXT         0000       R      1 (DATOS)                    
+CTE          0002       R      1 (DATOS)                    
+CAD          0064       R      1 (DATOS)                    
+CONT         006A       R      1 (DATOS)                    
+EXPR         FFFFFF     A      1 (DATOS)                    
+EXPR2        006A       R      1 (DATOS)                    
+SALTO        0003       R      2 (RUTINA)                   
+CALC         FFFFFF     A      1 (DATOS)                    

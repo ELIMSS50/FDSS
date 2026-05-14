@@ -107,6 +107,12 @@ public interface SICXEVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitDirectiva(SICXEParser.DirectivaContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link SICXEParser#listaIds}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitListaIds(SICXEParser.ListaIdsContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link SICXEParser#contenidoByte}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
