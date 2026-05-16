@@ -1,8 +1,0 @@
-=== TABLA DE BLOQUES: BLOQUES ===
-NO.BLOQUE  NOMBRE         LONGITUD     DIR.INICIO  
---------------------------------------------------
-0          (por omisión)  001C         0000        
-1          CDATA          0007         001C        
-2          CBLKS          1000         0023        
-3          INST           0005         1023        
-4          FINAL          0003         1028        

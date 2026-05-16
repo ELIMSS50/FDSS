@@ -1,6 +1,0 @@
-=== TABLA DE BLOQUES: EJERFINA ===
-NO.BLOQUE  NOMBRE         LONGITUD     DIR.INICIO  
---------------------------------------------------
-0          (por omisión)  0035         0000        
-1          DATOS          0077         0035        
-2          RUTINA         0011         00AC        

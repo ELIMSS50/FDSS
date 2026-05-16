@@ -1,9 +1,0 @@
-=== TABLA DE SÍMBOLOS: EXPRESIO ===
-SÍMBOLO      VALOR(HEX) TIPO   BLOQUE               ROL     
-------------------------------------------------------------
-TABLA        0000       R      0 ((por omisión))            
-NUM          0013       A      0 ((por omisión))            
-ETIQ         0009       R      0 ((por omisión))            
-TAM          000B       R      0 ((por omisión))            
-SALTO        0011       R      0 ((por omisión))            
-COUNT        0017       R      0 ((por omisión))            

@@ -1,6 +1,14 @@
 .env
 
-.csv
-.obj
-.err
-.txt
+# Archivos generados por el ensamblador
+*.csv
+*.obj
+*.err
+*.blk
+*.sim
+
+# Carpeta de compilación Maven (se regenera con mvn package)
+target/
+
+# Archivos generados por el plugin ANTLR del IDE
+.antlr/

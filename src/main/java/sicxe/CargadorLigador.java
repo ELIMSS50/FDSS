@@ -54,7 +54,6 @@ public class CargadorLigador extends JFrame {
 
     // ── Componentes UI ────────────────────────────────────────────────────
     private JTextField        campoDir;
-    private JTextField        campoTam;
     private JList<File>       listaArchivos;
     private DefaultTableModel modeloMemoria;
     private JTable            tablaMemoria;
@@ -108,10 +107,6 @@ public class CargadorLigador extends JFrame {
         tb.add(lbl("  Dir. de Carga (hex):"));
         campoDir = campo("0000", 90);
         tb.add(campoDir);
-        tb.add(lbl("  Tamaño (hex):"));
-        campoTam = campo("", 80);
-        campoTam.setToolTipText("Opcional: tamaño total del programa en hex. Si se omite, se calcula de los registros H.");
-        tb.add(campoTam);
         tb.addSeparator();
         tb.add(btnColor("Cargar",            new Color(45, 130, 75),  e -> accionCargar()));
         tb.add(btnColor("Cargar módulo",      new Color(30, 100, 160), e -> accionCargarModulo()));
@@ -482,12 +477,18 @@ public class CargadorLigador extends JFrame {
             if (lns.isEmpty()) throw new Exception("Archivo vacío: " + f.getName());
             String h = lns.get(0);
             if (!h.startsWith("H")) throw new Exception("No empieza con H: " + f.getName());
-            // Rellenar con espacios en caso de que el campo de nombre sea menor a 6 chars
-            if (h.length() < 19) h = String.format("%-19s", h);
 
-            String nombre  = h.substring(1, 7).trim();
-            int    dirIniH = Integer.parseInt(h.substring(7,  13).trim(), 16);
-            int    lonsc   = Integer.parseInt(h.substring(13, 19).trim(), 16);
+            // Parseo robusto: el nombre termina en espacio o al llegar a 6 chars (pos 7)
+            int pN = 1;
+            while (pN < h.length() && pN < 7 && h.charAt(pN) != ' ') pN++;
+            String nombre = h.substring(1, pN);
+            // Saltar espacios para encontrar los campos hexadecimales
+            int pHex = pN;
+            while (pHex < h.length() && h.charAt(pHex) == ' ') pHex++;
+            if (pHex + 12 > h.length())
+                throw new Exception("Registro H malformado en: " + f.getName());
+            int dirIniH = Integer.parseInt(h.substring(pHex,     pHex + 6).trim(), 16);
+            int lonsc   = Integer.parseInt(h.substring(pHex + 6, pHex + 12).trim(), 16);
 
             infos.add(new ModuloInfo(nombre, dirIniH, lonsc, dirsc));
             tabse.add(new EntradaTabse(nombre, "", dirsc, lonsc));
@@ -521,17 +522,8 @@ public class CargadorLigador extends JFrame {
         }
 
         // ── Inicializar memoria ───────────────────────────────────────
+        // Tamaño = suma de LONSC de todos los registros H (algoritmo del PDF)
         int tamTotal = dirsc - dirCargaInicial;
-        // Si el usuario especificó un tamaño, usarlo (trunca o extiende según corresponda)
-        String txtTam = campoTam.getText().trim();
-        if (!txtTam.isEmpty()) {
-            try {
-                int tamUser = Integer.parseInt(txtTam, 16);
-                if (tamUser > 0) tamTotal = tamUser;
-            } catch (NumberFormatException ignored) {
-                throw new Exception("Tamaño inválido. Use formato hexadecimal (ej: 4000).");
-            }
-        }
         if (tamTotal <= 0) throw new Exception("Longitud total inválida (≤ 0).");
         memoria        = new int[tamTotal];
         memoriaEscrita = new boolean[tamTotal]; // false por defecto (no escrito)
@@ -548,11 +540,13 @@ public class CargadorLigador extends JFrame {
 
                 // ── T record ─────────────────────────────────────────
                 if (linea.startsWith("T")) {
+                    if (linea.length() < 9) continue; // T record mínimo malformado
                     int    tAddr = Integer.parseInt(linea.substring(1, 7), 16);
                     int    tLen  = Integer.parseInt(linea.substring(7, 9), 16);
                     String cod   = linea.substring(9);
                     int    base  = info.dirsc() + tAddr - info.dirIniH();
                     for (int i = 0; i < tLen; i++) {
+                        if (i * 2 + 2 > cod.length()) break; // datos truncados en el T record
                         int b   = Integer.parseInt(cod.substring(i * 2, i * 2 + 2), 16);
                         int idx = base + i - dirCargaInicio;
                         if (idx >= 0 && idx < memoria.length) {
@@ -582,13 +576,18 @@ public class CargadorLigador extends JFrame {
                         // Símbolo externo no encontrado en TABSE → detener carga (algoritmo paso 2)
                         actualizarMapaMemoria();
                         String errMsg = String.format(
-                            "Símbolo '%s' no encontrado en TABSE.\nCarga interrumpida en módulo '%s' (registro M en %06X).",
+                            "Símbolo externo '%s' no encontrado en TABSE.\n\n" +
+                            "Módulo: '%s'  —  Registro M en dirección %06X\n\n" +
+                            "Este símbolo está declarado como referencia externa (R record)\n" +
+                            "y debe estar definido en otro módulo (D record).\n" +
+                            "Agregue el módulo que lo define y vuelva a cargar.",
                             sym, info.nombre(), info.dirsc() + mAddr - info.dirIniH());
                         lblInfo.setText(String.format(
-                            "ERROR: símbolo '%s' no encontrado en TABSE — carga interrumpida", sym));
+                            "ERROR: símbolo externo '%s' no encontrado — ¿falta un módulo?", sym));
                         lblInfo.setForeground(FG_ERR);
                         JOptionPane.showMessageDialog(CargadorLigador.this,
-                            errMsg, "Error de ligado", JOptionPane.ERROR_MESSAGE);
+                            errMsg, "Error de ligado — símbolo externo indefinido",
+                            JOptionPane.ERROR_MESSAGE);
                         return;
                     }
 
@@ -637,8 +636,8 @@ public class CargadorLigador extends JFrame {
         actualizarMapaMemoria();
         int bytesTotal = infos.stream().mapToInt(ModuloInfo::lonsc).sum();
         lblInfo.setText(String.format(
-            "Dir. inicio: %06X  |  Tamaño: %XH (%d bytes)  |  Módulos: %d  |  Bytes M: %d",
-            dirCargaInicio, bytesTotal, bytesTotal, modulos.size(), modificaciones.size()));
+            "Dir. inicio: %Xh  |  Dir. fin: %Xh  |  Tamaño: %Xh (%d bytes)  |  Módulos: %d  |  Bytes M: %d",
+            dirCargaInicio, dirCargaFin, bytesTotal, bytesTotal, modulos.size(), modificaciones.size()));
         lblInfo.setForeground(FG_OK);
     }
 
