@@ -2,7 +2,7 @@
 
 # Documentación local
 *.txt
-CLAUDE.md
+
 
 # Archivos generados por el ensamblador
 *.csv
