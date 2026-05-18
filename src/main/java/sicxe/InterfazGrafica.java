@@ -143,25 +143,76 @@ public class InterfazGrafica extends JFrame {
         JMenu mVentanas = menu("Ventanas");
         JMenuItem miAcerca = menuItem("Acerca de...", null, 0, 0);
         miAcerca.addActionListener(e -> JOptionPane.showMessageDialog(this,
-            "ENSAMBLADOR SIC/XE\nPráctica 10 — Interfaz Gráfica de Usuario\n\n" +
-            "Utiliza el menú ENSAMBLAR o los botones de la barra inferior.",
+            "ENSAMBLADOR SIC/XE\nPráctica 12 — Interfaz Gráfica con Cargador-Ligador\n\n" +
+            "Ensamblador de dos pasadas para la arquitectura SIC/XE.\n" +
+            "Soporta bloques de programa, secciones de control (CSECT),\n" +
+            "referencias externas (EXTDEF/EXTREF) y cargador-ligador integrado.",
             "Acerca de", JOptionPane.INFORMATION_MESSAGE));
         mVentanas.add(miAcerca);
 
         // ── Ayuda ─────────────────────────────────────────────────────
         JMenu mAyuda = menu("Ayuda");
+
         JMenuItem miManual = menuItem("Manual de uso", null, 0, 0);
         miManual.addActionListener(e -> JOptionPane.showMessageDialog(this,
-            "<html><b>Atajos de teclado</b><br>" +
-            "Ctrl+N: Nuevo archivo<br>" +
-            "Ctrl+O: Abrir archivo<br>" +
-            "Ctrl+S: Guardar<br>" +
-            "Ctrl+Z: Analizar léxico/sintáctico<br>" +
-            "Ctrl+Y: Paso 1 (archivo intermedio)<br>" +
-            "Ctrl+X: Paso 2 (código objeto)<br>" +
-            "Ctrl+E: Ensamblar todo</html>",
-            "Ayuda", JOptionPane.INFORMATION_MESSAGE));
+            "<html><body style='width:380px; font-family:monospace;'>" +
+            "<h3 style='margin-bottom:4px;'>Atajos de teclado</h3>" +
+            "<table cellpadding='2'>" +
+            "<tr><td><b>Ctrl+N</b></td><td>Nuevo archivo en blanco</td></tr>" +
+            "<tr><td><b>Ctrl+O</b></td><td>Abrir archivo .asm</td></tr>" +
+            "<tr><td><b>Ctrl+S</b></td><td>Guardar archivo actual</td></tr>" +
+            "<tr><td><b>Ctrl+Z</b></td><td>Analizar léxico/sintáctico</td></tr>" +
+            "<tr><td><b>Ctrl+Y</b></td><td>Paso 1 — tabla de símbolos</td></tr>" +
+            "<tr><td><b>Ctrl+X</b></td><td>Paso 2 — código objeto</td></tr>" +
+            "<tr><td><b>Ctrl+E</b></td><td>Ensamblar completo (Paso 1 + Paso 2)</td></tr>" +
+            "</table>" +
+            "<h3 style='margin-top:10px; margin-bottom:4px;'>Flujo de ensamblado</h3>" +
+            "<ol style='margin:0; padding-left:18px;'>" +
+            "<li>Abrir o escribir un programa <b>.asm</b> en el editor.</li>" +
+            "<li>Presionar <b>Ctrl+E</b> para ensamblar (Paso 1 y Paso 2).</li>" +
+            "<li>Revisar la tabla de símbolos, listado intermedio y código objeto.</li>" +
+            "<li>Si hay errores, corregirlos en el editor y ensamblar de nuevo.</li>" +
+            "<li>El archivo <b>.obj</b> se genera en la misma carpeta del .asm.</li>" +
+            "</ol>" +
+            "<h3 style='margin-top:10px; margin-bottom:4px;'>Flujo del Cargador-Ligador</h3>" +
+            "<ol style='margin:0; padding-left:18px;'>" +
+            "<li>Ensamblar el programa para obtener el archivo <b>.obj</b>.</li>" +
+            "<li>Hacer clic en el botón <b>Cargador</b> en la barra de herramientas.</li>" +
+            "<li>Verificar los módulos .obj en la lista (agregar más si es necesario).</li>" +
+            "<li>Ingresar la dirección de carga en hexadecimal (por defecto: 0000).</li>" +
+            "<li>Hacer clic en <b>Cargar</b> para ejecutar el ligado y carga en memoria.</li>" +
+            "<li>Usar <b>Ver TABSE</b> para inspeccionar los símbolos externos resueltos.</li>" +
+            "</ol>" +
+            "<h3 style='margin-top:10px; margin-bottom:4px;'>Ejecución del programa</h3>" +
+            "<p style='margin:2px 0;'>Desde terminal:</p>" +
+            "<p style='margin:2px 0; background:#1a1a1a; color:#aaffaa; padding:4px; border-radius:3px;'>" +
+            "&nbsp;&nbsp;java -jar p03-sicxe.jar</p>" +
+            "<p style='margin:4px 0;'>Para abrir un archivo directamente al iniciar:</p>" +
+            "<p style='margin:2px 0; background:#1a1a1a; color:#aaffaa; padding:4px; border-radius:3px;'>" +
+            "&nbsp;&nbsp;java -jar p03-sicxe.jar ruta/archivo.asm</p>" +
+            "</body></html>",
+            "Manual de uso", JOptionPane.INFORMATION_MESSAGE));
         mAyuda.add(miManual);
+
+        JMenuItem miCreadores = menuItem("Creadores", null, 0, 0);
+        miCreadores.addActionListener(e -> JOptionPane.showMessageDialog(this,
+            "<html><body style='width:320px; font-family:sans-serif; text-align:center;'>" +
+            "<h2 style='margin-bottom:6px;'>Ensamblador SIC/XE</h2>" +
+            "<hr/>" +
+            "<h3 style='margin-bottom:4px;'>Desarrollado por</h3>" +
+            "<p style='font-size:14px; font-weight:bold; margin:4px 0;'>Ana Line Benavente Montante</p>" +
+            "<p style='font-size:14px; font-weight:bold; margin:4px 0;'>Rodriguez Rico Luis Felipe</p>" +
+            "<hr/>" +
+            "<h3 style='margin-bottom:4px;'>Tecnologías utilizadas</h3>" +
+            "<table width='100%' cellpadding='3'>" +
+            "<tr><td><b>Lenguaje</b></td><td>Java 21</td></tr>" +
+            "<tr><td><b>Interfaz</b></td><td>Java Swing</td></tr>" +
+            "<tr><td><b>Parser</b></td><td>ANTLR 4.11.1</td></tr>" +
+            "<tr><td><b>Build</b></td><td>Apache Maven 3.8.7</td></tr>" +
+            "</table>" +
+            "</body></html>",
+            "Creadores", JOptionPane.INFORMATION_MESSAGE));
+        mAyuda.add(miCreadores);
 
         bar.add(mArchivo); bar.add(mEnsamblar); bar.add(mCargar);
         bar.add(mSimular); bar.add(mVentanas);  bar.add(mAyuda);
